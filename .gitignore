@@ -6,11 +6,19 @@
 # Python
 __pycache__/
 *.py[cod]
+*$py.class
+*.so
 *.egg-info/
+.eggs/
+*.egg
 .venv/
 venv/
+ENV/
 dist/
 build/
+.coverage
+htmlcov/
+.pytest_cache/
 
 # Database
 *.db
