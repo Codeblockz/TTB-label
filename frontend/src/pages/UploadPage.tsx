@@ -1,0 +1,79 @@
+import { useState } from "react";
+import DropZone from "../components/upload/DropZone";
+import FilePreview from "../components/upload/FilePreview";
+import UploadButton from "../components/upload/UploadButton";
+import LoadingSpinner from "../components/common/LoadingSpinner";
+import ErrorMessage from "../components/common/ErrorMessage";
+import ResultDetail from "../components/results/ResultDetail";
+import useAnalysis from "../hooks/useAnalysis";
+
+export default function UploadPage() {
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const { upload, analysis, isUploading, isProcessing, error } = useAnalysis();
+
+  const isDone = analysis?.status === "completed";
+
+  function handleUpload() {
+    if (selectedFile) {
+      upload(selectedFile);
+    }
+  }
+
+  function handleReset() {
+    setSelectedFile(null);
+    window.location.reload();
+  }
+
+  if (isUploading) {
+    return <LoadingSpinner message="Uploading label image..." />;
+  }
+
+  if (isProcessing) {
+    const statusMessage =
+      analysis?.status === "processing_ocr"
+        ? "Extracting text from label..."
+        : analysis?.status === "processing_compliance"
+          ? "Checking compliance rules..."
+          : "Processing...";
+    return <LoadingSpinner message={statusMessage} />;
+  }
+
+  if (isDone && analysis) {
+    return (
+      <div className="space-y-4">
+        <ResultDetail analysis={analysis} />
+        <button
+          onClick={handleReset}
+          className="rounded-lg border border-gray-300 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
+        >
+          Upload Another
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-4">
+      <h2 className="text-xl font-semibold text-gray-900">
+        Upload Label for Analysis
+      </h2>
+      {error && <ErrorMessage message={error} />}
+      {!selectedFile ? (
+        <DropZone onFileSelected={setSelectedFile} />
+      ) : (
+        <div className="space-y-4">
+          <FilePreview file={selectedFile} />
+          <div className="flex gap-3">
+            <UploadButton onClick={handleUpload} disabled={false} />
+            <button
+              onClick={() => setSelectedFile(null)}
+              className="rounded-lg border border-gray-300 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
+            >
+              Clear
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
