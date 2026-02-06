@@ -1,0 +1,1 @@
+First I downloaded the instructions, then I made a repository to View them in I broke everything down into markdown. I read the instructions over carefully. I then used Claude code to analyze the markdown and make a PRD. The plan is to use the PRD to make an app. I'll use clogged code as an assistant to help with planning and structure. 
