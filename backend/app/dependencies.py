@@ -23,15 +23,20 @@ async def get_db() -> AsyncGenerator[AsyncSession, None]:
 def get_ocr_service() -> OCRServiceProtocol:
     if settings.use_mock_services:
         return MockOCRService()
-    # Real Azure Vision service will be added in Phase 3
-    raise NotImplementedError("Real OCR service not yet implemented")
+    from app.services.ocr.azure_vision import AzureVisionOCRService
+    return AzureVisionOCRService(settings.azure_vision_endpoint, settings.azure_vision_key)
 
 
 def get_llm_service() -> LLMServiceProtocol:
     if settings.use_mock_services:
         return MockLLMService()
-    # Real Azure OpenAI service will be added in Phase 3
-    raise NotImplementedError("Real LLM service not yet implemented")
+    from app.services.llm.azure_openai import AzureOpenAILLMService
+    return AzureOpenAILLMService(
+        settings.azure_openai_endpoint,
+        settings.azure_openai_key,
+        settings.azure_openai_deployment,
+        settings.azure_openai_api_version,
+    )
 
 
 def get_pipeline() -> AnalysisPipeline:
