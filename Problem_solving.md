@@ -25,3 +25,5 @@ I added AI generated labels for testing. I used chatGPT to create them.
 I asked claude code to create a UX testing team to check for functionality. I used plan -> then implement
 
 The application did not show the matching to the form. 
+Fixed that. Moving on the use of mock api interferring with speed test.
+Out of fustration, I had the bot remove all mock points. I will pay for that later.

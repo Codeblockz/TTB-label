@@ -22,6 +22,9 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/batch", tags=["batch"])
 
 
+MAX_CONCURRENT_ANALYSES = 5
+
+
 async def _run_batch_pipeline(batch_id: str, items: list[dict], pipeline: AnalysisPipeline) -> None:
     from app.dependencies import session_factory
 
@@ -32,23 +35,44 @@ async def _run_batch_pipeline(batch_id: str, items: list[dict], pipeline: Analys
         batch.status = BatchStatus.PROCESSING
         await db.commit()
 
-        for item in items:
+    semaphore = asyncio.Semaphore(MAX_CONCURRENT_ANALYSES)
+    progress_lock = asyncio.Lock()
+
+    async def _update_progress(success: bool) -> None:
+        async with progress_lock:
+            async with session_factory() as db:
+                batch = await db.get(BatchJob, batch_id)
+                if not batch:
+                    return
+                if success:
+                    batch.completed_labels += 1
+                else:
+                    batch.failed_labels += 1
+                await db.commit()
+
+    async def _process_one(item: dict) -> None:
+        async with semaphore:
             try:
-                await pipeline.run(
-                    item["analysis_id"],
-                    item["label_id"],
-                    item["image_path"],
-                    db,
-                    item.get("application_details"),
-                )
-                batch.completed_labels += 1
+                async with session_factory() as item_db:
+                    await pipeline.run(
+                        item["analysis_id"],
+                        item["label_id"],
+                        item["image_path"],
+                        item_db,
+                        item.get("application_details"),
+                    )
+                await _update_progress(True)
             except Exception as exc:
                 logger.exception("Batch item failed: %s", exc)
-                batch.failed_labels += 1
-            await db.commit()
+                await _update_progress(False)
 
-        batch.status = BatchStatus.COMPLETED
-        await db.commit()
+    await asyncio.gather(*[_process_one(item) for item in items])
+
+    async with session_factory() as db:
+        batch = await db.get(BatchJob, batch_id)
+        if batch:
+            batch.status = BatchStatus.COMPLETED
+            await db.commit()
 
 
 @router.post("/upload")

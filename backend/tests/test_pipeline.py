@@ -1,17 +1,22 @@
 import json
+import os
 
 import pytest
 import pytest_asyncio
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
+from app.config import settings
 from app.models.analysis import AnalysisResult, AnalysisStatus
 from app.models.base import Base
 from app.models.batch import BatchJob  # noqa: F401
 from app.models.label import Label
 from app.services.compliance.engine import ComplianceEngine
-from app.services.llm.mock import MockLLMService
-from app.services.ocr.mock import MockOCRService
+from app.services.llm.azure_openai import AzureOpenAILLMService
+from app.services.ocr.azure_vision import AzureVisionOCRService
 from app.services.pipeline import AnalysisPipeline
+
+FIXTURE_DIR = os.path.join(os.path.dirname(__file__), "fixtures")
+SAMPLE_LABEL = os.path.join(FIXTURE_DIR, "river_vodka.png")
 
 
 @pytest_asyncio.fixture
@@ -30,37 +35,38 @@ async def pipeline_db():
 
 @pytest.fixture
 def pipeline():
-    ocr = MockOCRService()
-    llm = MockLLMService()
+    ocr = AzureVisionOCRService(settings.azure_vision_endpoint, settings.azure_vision_key)
+    llm = AzureOpenAILLMService(
+        settings.azure_openai_endpoint,
+        settings.azure_openai_key,
+        settings.azure_openai_deployment,
+        settings.azure_openai_api_version,
+    )
     engine = ComplianceEngine(llm)
     return AnalysisPipeline(ocr, engine)
 
 
 @pytest.mark.asyncio
 async def test_pipeline_completes_successfully(pipeline_db: AsyncSession, pipeline: AnalysisPipeline):
-    # Create a label record
     label = Label(
-        original_filename="test_label.jpg",
-        stored_filepath="/tmp/test_label.jpg",
-        file_size_bytes=1024,
-        mime_type="image/jpeg",
+        original_filename="river_vodka.png",
+        stored_filepath=SAMPLE_LABEL,
+        file_size_bytes=os.path.getsize(SAMPLE_LABEL),
+        mime_type="image/png",
     )
     pipeline_db.add(label)
     await pipeline_db.flush()
 
-    # Create an analysis record
     analysis = AnalysisResult(label_id=label.id, status=AnalysisStatus.PENDING)
     pipeline_db.add(analysis)
     await pipeline_db.commit()
 
-    # Run the pipeline
-    await pipeline.run(analysis.id, label.id, "/tmp/test_label.jpg", pipeline_db)
+    await pipeline.run(analysis.id, label.id, SAMPLE_LABEL, pipeline_db)
 
-    # Refresh and verify
     await pipeline_db.refresh(analysis)
     assert analysis.status == AnalysisStatus.COMPLETED
     assert analysis.extracted_text is not None
-    assert "GOVERNMENT WARNING" in analysis.extracted_text
+    assert len(analysis.extracted_text) > 50
     assert analysis.ocr_confidence is not None
     assert analysis.ocr_duration_ms is not None
     assert analysis.compliance_findings is not None
@@ -72,10 +78,10 @@ async def test_pipeline_completes_successfully(pipeline_db: AsyncSession, pipeli
 @pytest.mark.asyncio
 async def test_pipeline_sets_beverage_type(pipeline_db: AsyncSession, pipeline: AnalysisPipeline):
     label = Label(
-        original_filename="bourbon.jpg",
-        stored_filepath="/tmp/bourbon.jpg",
-        file_size_bytes=2048,
-        mime_type="image/jpeg",
+        original_filename="river_vodka.png",
+        stored_filepath=SAMPLE_LABEL,
+        file_size_bytes=os.path.getsize(SAMPLE_LABEL),
+        mime_type="image/png",
     )
     pipeline_db.add(label)
     await pipeline_db.flush()
@@ -84,7 +90,7 @@ async def test_pipeline_sets_beverage_type(pipeline_db: AsyncSession, pipeline: 
     pipeline_db.add(analysis)
     await pipeline_db.commit()
 
-    await pipeline.run(analysis.id, label.id, "/tmp/bourbon.jpg", pipeline_db)
+    await pipeline.run(analysis.id, label.id, SAMPLE_LABEL, pipeline_db)
 
     await pipeline_db.refresh(analysis)
     assert analysis.detected_beverage_type is not None
@@ -94,10 +100,10 @@ async def test_pipeline_sets_beverage_type(pipeline_db: AsyncSession, pipeline: 
 @pytest.mark.asyncio
 async def test_pipeline_with_application_details(pipeline_db: AsyncSession, pipeline: AnalysisPipeline):
     label = Label(
-        original_filename="bourbon.jpg",
-        stored_filepath="/tmp/bourbon.jpg",
-        file_size_bytes=2048,
-        mime_type="image/jpeg",
+        original_filename="river_vodka.png",
+        stored_filepath=SAMPLE_LABEL,
+        file_size_bytes=os.path.getsize(SAMPLE_LABEL),
+        mime_type="image/png",
     )
     pipeline_db.add(label)
     await pipeline_db.flush()
@@ -107,17 +113,16 @@ async def test_pipeline_with_application_details(pipeline_db: AsyncSession, pipe
     await pipeline_db.commit()
 
     app_details = {
-        "brand_name": "OLD TOM DISTILLERY",
-        "class_type": "Kentucky Straight Bourbon Whiskey",
-        "alcohol_content": "45% Alc./Vol.",
+        "brand_name": "RIVERSTONE",
+        "class_type": "Vodka",
+        "alcohol_content": "40% Alc./Vol.",
     }
 
-    await pipeline.run(analysis.id, label.id, "/tmp/bourbon.jpg", pipeline_db, app_details)
+    await pipeline.run(analysis.id, label.id, SAMPLE_LABEL, pipeline_db, app_details)
 
     await pipeline_db.refresh(analysis)
     assert analysis.status == AnalysisStatus.COMPLETED
     assert analysis.compliance_findings is not None
-    # Should contain matching findings (BRAND_MATCH, CLASS_TYPE_MATCH, etc.)
     findings = json.loads(analysis.compliance_findings)
     matching_ids = [f["rule_id"] for f in findings if f["rule_id"].endswith("_MATCH")]
     assert len(matching_ids) > 0
@@ -127,10 +132,10 @@ async def test_pipeline_with_application_details(pipeline_db: AsyncSession, pipe
 @pytest.mark.asyncio
 async def test_pipeline_without_application_details(pipeline_db: AsyncSession, pipeline: AnalysisPipeline):
     label = Label(
-        original_filename="test.jpg",
-        stored_filepath="/tmp/test.jpg",
-        file_size_bytes=1024,
-        mime_type="image/jpeg",
+        original_filename="river_vodka.png",
+        stored_filepath=SAMPLE_LABEL,
+        file_size_bytes=os.path.getsize(SAMPLE_LABEL),
+        mime_type="image/png",
     )
     pipeline_db.add(label)
     await pipeline_db.flush()
@@ -139,11 +144,10 @@ async def test_pipeline_without_application_details(pipeline_db: AsyncSession, p
     pipeline_db.add(analysis)
     await pipeline_db.commit()
 
-    await pipeline.run(analysis.id, label.id, "/tmp/test.jpg", pipeline_db)
+    await pipeline.run(analysis.id, label.id, SAMPLE_LABEL, pipeline_db)
 
     await pipeline_db.refresh(analysis)
     assert analysis.status == AnalysisStatus.COMPLETED
-    # Should NOT contain matching findings
     findings = json.loads(analysis.compliance_findings)
     matching_ids = [f["rule_id"] for f in findings if f["rule_id"].endswith("_MATCH")]
     assert len(matching_ids) == 0

@@ -1,8 +1,4 @@
-"""Integration tests using real Azure AI services.
-
-These tests are skipped when USE_MOCK_SERVICES=true (the default).
-To run them: USE_MOCK_SERVICES=false pytest tests/test_integration.py -v
-"""
+"""Integration tests using real Azure AI services."""
 
 import os
 
@@ -17,9 +13,6 @@ from app.models.batch import BatchJob  # noqa: F401
 from app.models.label import Label
 from app.services.compliance.engine import ComplianceEngine
 from app.services.pipeline import AnalysisPipeline
-
-SKIP_REASON = "USE_MOCK_SERVICES is true — set to false with real Azure credentials to run"
-skip_if_mock = pytest.mark.skipif(settings.use_mock_services, reason=SKIP_REASON)
 
 FIXTURE_DIR = os.path.join(os.path.dirname(__file__), "fixtures")
 SAMPLE_LABEL = os.path.join(FIXTURE_DIR, "sample_label.jpg")
@@ -52,7 +45,6 @@ def real_pipeline():
     return AnalysisPipeline(ocr, engine)
 
 
-@skip_if_mock
 @pytest.mark.asyncio
 async def test_real_ocr_extracts_text():
     """Azure Vision OCR reads text from a real bourbon label image."""
@@ -73,7 +65,6 @@ async def test_real_ocr_extracts_text():
     ), f"OCR text doesn't contain expected bourbon label terms: {result.text[:300]}"
 
 
-@skip_if_mock
 @pytest.mark.asyncio
 async def test_real_llm_returns_compliance_json():
     """Azure OpenAI returns valid compliance JSON for bourbon label text."""
@@ -112,7 +103,6 @@ async def test_real_llm_returns_compliance_json():
         assert finding["severity"] in ("pass", "fail", "warning", "info")
 
 
-@skip_if_mock
 @pytest.mark.asyncio
 async def test_real_full_pipeline(db: AsyncSession, real_pipeline: AnalysisPipeline):
     """Full pipeline with real Azure OCR + LLM against a real label image."""

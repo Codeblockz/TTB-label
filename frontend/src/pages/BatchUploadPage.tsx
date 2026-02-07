@@ -1,4 +1,4 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useRef } from "react";
 import { uploadBatch, getBatch } from "../api/analysis";
 import useBatchProgress from "../hooks/useBatchProgress";
 import BatchProgress from "../components/batch/BatchProgress";
@@ -15,6 +15,8 @@ export default function BatchUploadPage() {
   const [error, setError] = useState<string | null>(null);
   const [isUploading, setIsUploading] = useState(false);
 
+  const imageInputRef = useRef<HTMLInputElement>(null);
+  const csvInputRef = useRef<HTMLInputElement>(null);
   const progress = useBatchProgress(batchId);
   const canSubmit = imageFiles.length > 0 && csvFile !== null && !isUploading && !batchId;
 
@@ -104,12 +106,20 @@ export default function BatchUploadPage() {
             Select multiple label images to analyze
           </p>
           <input
+            ref={imageInputRef}
             type="file"
             multiple
             accept="image/jpeg,image/png,image/webp,image/tiff"
             onChange={(e) => setImageFiles(Array.from(e.target.files ?? []))}
-            className="text-sm text-gray-600"
+            className="hidden"
           />
+          <button
+            type="button"
+            onClick={() => imageInputRef.current?.click()}
+            className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+          >
+            Select Images
+          </button>
           {imageFiles.length > 0 && (
             <p className="mt-2 text-sm text-green-600">
               {imageFiles.length} file{imageFiles.length !== 1 ? "s" : ""} selected
@@ -125,11 +135,19 @@ export default function BatchUploadPage() {
             CSV with columns: filename, brand_name, class_type, alcohol_content, net_contents, bottler_name_address, country_of_origin
           </p>
           <input
+            ref={csvInputRef}
             type="file"
             accept=".csv"
             onChange={(e) => setCsvFile(e.target.files?.[0] ?? null)}
-            className="text-sm text-gray-600"
+            className="hidden"
           />
+          <button
+            type="button"
+            onClick={() => csvInputRef.current?.click()}
+            className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+          >
+            Select CSV File
+          </button>
           {csvFile && (
             <p className="mt-2 text-sm text-green-600">{csvFile.name}</p>
           )}

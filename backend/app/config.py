@@ -16,7 +16,6 @@ class Settings(BaseSettings):
     azure_openai_api_version: str = "2024-12-01-preview"
     database_url: str = "sqlite+aiosqlite:///./labelcheck.db"
     upload_dir: str = "./uploads"
-    use_mock_services: bool = True
     log_level: str = "info"
 
     model_config = {"env_file": str(_ENV_FILE), "env_file_encoding": "utf-8"}

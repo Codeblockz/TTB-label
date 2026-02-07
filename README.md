@@ -16,7 +16,7 @@ Each label receives a verdict: **Pass**, **Fail**, or **Warnings** with detailed
 
 ```bash
 cp .env.example .env
-# Edit .env with your Azure keys, or leave USE_MOCK_SERVICES=true for demo mode
+# Edit .env with your Azure keys
 
 docker-compose up --build
 ```
@@ -61,7 +61,6 @@ See `.env.example`. Key settings:
 
 | Variable | Description |
 |----------|-------------|
-| `USE_MOCK_SERVICES` | `true` for demo mode (no Azure keys needed) |
 | `AZURE_VISION_ENDPOINT` | Azure Computer Vision endpoint |
 | `AZURE_VISION_KEY` | Azure Computer Vision key |
 | `AZURE_OPENAI_ENDPOINT` | Azure OpenAI endpoint |
