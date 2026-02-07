@@ -22,6 +22,8 @@ This is a take-home project for TTB (Alcohol and Tobacco Tax and Trade Bureau). 
 | Batch upload (50+ labels) | Sarah: "handle batch uploads...Janet has been asking for years" (line 23) | P1 |
 | Results history | User's requirement for checks/evaluations on correct labels | P1 |
 | Non-English label detection | Jenny: "Even just flagging 'hey, this might not be in English'" (line 59) | P2 (nice-to-have) |
+| Application details matching (mandatory) | Core workflow: agents submit COLA application details + label image, system verifies match | P0 |
+| Batch upload with CSV matching | Batch: CSV (required) maps filenames to application details for comparison | P1 |
 | Deployed URL | Deliverables section (line 102) | P0 |
 | README with setup instructions | Deliverables section (lines 98-100) | P0 |
 | Tool aids agents, doesn't replace judgment | Dave: "don't tell me it's going to replace my judgment" (line 49) | Design principle |
@@ -66,6 +68,22 @@ This is a take-home project for TTB (Alcohol and Tobacco Tax and Trade Bureau). 
                         │  │  3. Store results (SQLite)        │     │
                         │  └─────────────────────────────────┘     │
                         └──────────────────────────────────────────┘
+```
+
+### Application Details Matching Flow
+
+```
+Single Upload:
+  Agent fills application details form (required) ──┐
+  Agent uploads label image ────────────────────────┤
+                                                    ▼
+  Pipeline: OCR → Compliance Check + Application Matching → Store
+
+Batch Upload:
+  Agent uploads N label images ──────────────────┐
+  Agent uploads CSV with application details (required) ──┤
+                                                          ▼
+  For each image: match CSV row → OCR → Compliance Check + Matching → Store
 ```
 
 **Performance budget (must total < 5 seconds):**
@@ -145,19 +163,20 @@ TTB_label/
     ├── vite.config.ts
     └── src/
         ├── main.tsx
-        ├── App.tsx                     # Router: /, /history, /results/:id
+        ├── App.tsx                     # Router: /, /batch, /history, /results/:id
         ├── api/
         │   ├── client.ts              # Axios instance
         │   └── analysis.ts            # uploadSingle, uploadBatch, getAnalysis, getHistory
         ├── components/
         │   ├── layout/                # Header, Layout
-        │   ├── upload/                # DropZone, FilePreview, UploadButton
+        │   ├── upload/                # DropZone, FilePreview, UploadButton, ApplicationDetailsForm
         │   ├── results/               # ComplianceCard, ComplianceSummary, ResultDetail
         │   ├── batch/                 # BatchProgress, BatchResultsList
         │   ├── history/               # HistoryTable
         │   └── common/                # LoadingSpinner, StatusBadge, ErrorMessage
         ├── pages/
-        │   ├── UploadPage.tsx         # Main page: upload → process → results
+        │   ├── UploadPage.tsx         # Single label: upload → form → process → results
+        │   ├── BatchUploadPage.tsx    # Batch: multi-file + CSV → process → results
         │   ├── HistoryPage.tsx        # Past analyses table
         │   └── ResultPage.tsx         # Single result detail view
         ├── hooks/
@@ -174,10 +193,10 @@ TTB_label/
 | Method | Path | Purpose |
 |---|---|---|
 | `GET` | `/api/health` | Health check |
-| `POST` | `/api/analysis/single` | Upload + analyze one label (returns analysis_id, client polls) |
+| `POST` | `/api/analysis/single` | Upload + analyze one label with optional application details (returns analysis_id, client polls) |
 | `GET` | `/api/analysis/{id}` | Get analysis result (poll until status=completed) |
 | `GET` | `/api/analysis/` | History with pagination + filters |
-| `POST` | `/api/batch/upload` | Upload multiple labels (returns batch_id) |
+| `POST` | `/api/batch/upload` | Upload multiple labels with optional CSV of application details (returns batch_id) |
 | `GET` | `/api/batch/{id}` | Get batch details + all results |
 | `GET` | `/api/batch/{id}/stream` | SSE stream for real-time batch progress |
 
@@ -192,6 +211,7 @@ TTB_label/
 - `id` (UUID), `label_id` (FK), `status` (pending/processing_ocr/processing_compliance/completed/failed)
 - OCR: `extracted_text`, `ocr_confidence`, `ocr_duration_ms`
 - Compliance: `compliance_findings` (JSON), `overall_verdict` (pass/fail/warnings), `compliance_duration_ms`
+- Application matching: `application_details` (JSON, nullable) — stores the COLA application details submitted for comparison
 - Metadata: `detected_beverage_type`, `detected_brand_name`, `error_message`, `total_duration_ms`
 
 **BatchJob** — tracks batch processing
@@ -218,27 +238,44 @@ TTB_label/
 
 **Merge strategy:** Regex findings take precedence for rules they cover. LLM findings supplement with additional rules. This gives speed + nuance.
 
+### Application Details Matching (when provided)
+When an agent submits application details alongside a label image, the LLM also compares each provided field against the OCR text:
+- **BRAND_MATCH** — Does the label brand match the application's brand_name?
+- **CLASS_TYPE_MATCH** — Does the label class/type match the application's class_type?
+- **ALCOHOL_MATCH** — Does the label alcohol content match the application's alcohol_content?
+- **NET_CONTENTS_MATCH** — Does the label net contents match the application's net_contents?
+- **NAME_ADDRESS_MATCH** — Does the label name/address match the application's bottler_name_address?
+- **ORIGIN_MATCH** — Does the label country of origin match the application's country_of_origin?
+
+Each matching finding has severity `pass` (match) or `fail` (mismatch) with a message showing expected vs. found values.
+
 **LLM output format:** Structured JSON with `response_format={"type": "json_object"}`. Each finding has: `rule_id`, `rule_name`, `severity` (pass/warning/fail/info), `message`, `extracted_value`, `regulation_reference`.
 
 ---
 
 ## Frontend Design
 
-**3 pages only** (per Dave: "I don't need seventeen tabs and a dashboard"):
+**4 pages** (per Dave: "I don't need seventeen tabs and a dashboard" — batch is separate to keep single upload simple):
 
-### Page 1: Upload Page (`/`) — the primary workflow
+### Page 1: Upload Page (`/`) — single label workflow
 Single-page state machine:
 1. **Empty state** → large drag-and-drop zone + "Choose File(s)" button
-2. **Files selected** → thumbnail previews + big "Check This Label" / "Check N Labels" button
-3. **Processing** → spinner (single) or progress bar (batch)
-4. **Results** → compliance cards with pass/fail/warning badges + "Check Another Label" button
+2. **File selected** → thumbnail preview + application details form (required) + "Analyze Label" button
+3. **Processing** → spinner with status text
+4. **Results** → compliance cards with pass/fail/warning badges, matching results (if details provided) + "Upload Another" button
 
-### Page 2: History Page (`/history`)
+### Page 2: Batch Upload Page (`/batch`) — batch workflow
+1. **Upload** → two zones: multi-file images + CSV of application details (required)
+2. **Preview** → table of matched filenames → details
+3. **Processing** → progress bar
+4. **Results** → list of results with verdict badges
+
+### Page 3: History Page (`/history`)
 - Paginated table of past analyses
 - Filter by verdict, beverage type
 - Click row → detail view
 
-### Page 3: Result Detail Page (`/results/:id`)
+### Page 4: Result Detail Page (`/results/:id`)
 - Full findings list, extracted text panel, label image thumbnail
 
 **UX principles** (from stakeholder interviews):
