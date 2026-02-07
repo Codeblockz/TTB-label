@@ -12,3 +12,11 @@ Anthropic just rolled out a new feature. It's experimental. However, I want to s
 
 Seven minutes later. It came up with a plan is now 3:05 I Asked it to look at the remaining phases use the new teams tool and Work it out now that the plan has finished. Let's see how long it takes. 
 
+It is now 3:44 and to my horror it appears to be complete. 
+
+started again at 4:48pm I am using claude code to test all features of the app.
+
+Started again Feb 7
+The app does not batch upload. It also does not match. It does not have a way to match my wording was incorrect when I fed it to the LLM. I will now correct that. 
+
+As Claude is working, it is important to keep track of what it's writing and approve. For example, it wrote that the application should be optional. I disagree. For the purpose of this app, it should be mandatory. The whole purpose is to make the process of matching the applications easier. Now in practice the applications to be matched should be from a database that we have somewhere But for this purpose they will fill out a form in case it is not readily available. 
