@@ -3,13 +3,20 @@ import type {
   AnalysisResponse,
   AnalysisListResponse,
   BatchDetailResponse,
+  ApplicationDetails,
 } from "../types/analysis";
 
 export async function uploadSingle(
   file: File,
+  applicationDetails: ApplicationDetails,
 ): Promise<{ analysis_id: string }> {
   const formData = new FormData();
   formData.append("file", file);
+  for (const [key, value] of Object.entries(applicationDetails)) {
+    if (value) {
+      formData.append(key, value);
+    }
+  }
   const response = await apiClient.post<{ analysis_id: string }>(
     "/analysis/single",
     formData,
@@ -39,11 +46,13 @@ export async function getHistory(
 
 export async function uploadBatch(
   files: File[],
+  csvFile: File,
 ): Promise<{ batch_id: string; total_labels: number }> {
   const formData = new FormData();
   for (const file of files) {
     formData.append("files", file);
   }
+  formData.append("csv_file", csvFile);
   const response = await apiClient.post<{
     batch_id: string;
     total_labels: number;

@@ -18,6 +18,15 @@ export interface ComplianceFinding {
   regulation_reference: string | null;
 }
 
+export interface ApplicationDetails {
+  brand_name?: string;
+  class_type?: string;
+  alcohol_content?: string;
+  net_contents?: string;
+  bottler_name_address?: string;
+  country_of_origin?: string;
+}
+
 export interface AnalysisResponse {
   id: string;
   label_id: string;
@@ -26,6 +35,7 @@ export interface AnalysisResponse {
   ocr_confidence: number | null;
   ocr_duration_ms: number | null;
   compliance_findings: ComplianceFinding[] | null;
+  application_details?: ApplicationDetails;
   overall_verdict: OverallVerdict | null;
   compliance_duration_ms: number | null;
   detected_beverage_type: string | null;

@@ -1,6 +1,6 @@
 import { useState, useRef, useCallback } from "react";
 import { uploadSingle, getAnalysis } from "../api/analysis";
-import type { AnalysisResponse } from "../types/analysis";
+import type { AnalysisResponse, ApplicationDetails } from "../types/analysis";
 
 const POLL_INTERVAL_MS = 1000;
 
@@ -19,14 +19,14 @@ export default function useAnalysis() {
   }, []);
 
   const upload = useCallback(
-    async (file: File) => {
+    async (file: File, applicationDetails: ApplicationDetails) => {
       setError(null);
       setAnalysis(null);
       setIsUploading(true);
       stopPolling();
 
       try {
-        const { analysis_id } = await uploadSingle(file);
+        const { analysis_id } = await uploadSingle(file, applicationDetails);
         setIsUploading(false);
         setIsProcessing(true);
 
