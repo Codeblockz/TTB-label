@@ -2,7 +2,7 @@ from datetime import datetime
 
 from pydantic import BaseModel
 
-from app.schemas.compliance import ComplianceFinding
+from app.schemas.compliance import ApplicationDetails, ComplianceFinding
 
 
 class AnalysisResponse(BaseModel):
@@ -13,6 +13,7 @@ class AnalysisResponse(BaseModel):
     ocr_confidence: float | None = None
     ocr_duration_ms: int | None = None
     compliance_findings: list[ComplianceFinding] | None = None
+    application_details: ApplicationDetails | None = None
     overall_verdict: str | None = None
     compliance_duration_ms: int | None = None
     detected_beverage_type: str | None = None
@@ -29,7 +30,3 @@ class AnalysisListResponse(BaseModel):
     total: int
     page: int
     page_size: int
-
-
-class AnalysisSingleRequest(BaseModel):
-    analysis_id: str

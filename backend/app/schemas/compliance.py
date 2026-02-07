@@ -19,6 +19,15 @@ class ComplianceFinding(BaseModel):
     regulation_reference: str | None = None
 
 
+class ApplicationDetails(BaseModel):
+    brand_name: str | None = None
+    class_type: str | None = None
+    alcohol_content: str | None = None
+    net_contents: str | None = None
+    bottler_name_address: str | None = None
+    country_of_origin: str | None = None
+
+
 class ComplianceReport(BaseModel):
     findings: list[ComplianceFinding]
     overall_verdict: str

@@ -43,6 +43,9 @@ class AnalysisResult(Base, TimestampMixin):
     )
     compliance_duration_ms: Mapped[int | None] = mapped_column(Integer, nullable=True)
 
+    # Application details (JSON string)
+    application_details: Mapped[str | None] = mapped_column(Text, nullable=True)
+
     # Metadata
     detected_beverage_type: Mapped[str | None] = mapped_column(String, nullable=True)
     detected_brand_name: Mapped[str | None] = mapped_column(String, nullable=True)
