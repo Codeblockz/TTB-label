@@ -20,3 +20,8 @@ Started again Feb 7
 The app does not batch upload. It also does not match. It does not have a way to match my wording was incorrect when I fed it to the LLM. I will now correct that. 
 
 As Claude is working, it is important to keep track of what it's writing and approve. For example, it wrote that the application should be optional. I disagree. For the purpose of this app, it should be mandatory. The whole purpose is to make the process of matching the applications easier. Now in practice the applications to be matched should be from a database that we have somewhere But for this purpose they will fill out a form in case it is not readily available. 
+
+I added AI generated labels for testing. I used chatGPT to create them. 
+I asked claude code to create a UX testing team to check for functionality. I used plan -> then implement
+
+The application did not show the matching to the form. 

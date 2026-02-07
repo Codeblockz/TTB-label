@@ -54,27 +54,25 @@ export default function HistoryTable({
         </tbody>
       </table>
 
-      {totalPages > 1 && (
-        <div className="mt-4 flex justify-center gap-2">
-          <button
-            onClick={() => onPageChange(page - 1)}
-            disabled={page <= 1}
-            className="rounded border border-gray-300 px-3 py-1 text-sm disabled:opacity-50"
-          >
-            Previous
-          </button>
-          <span className="px-3 py-1 text-sm text-gray-600">
-            Page {page} of {totalPages}
-          </span>
-          <button
-            onClick={() => onPageChange(page + 1)}
-            disabled={page >= totalPages}
-            className="rounded border border-gray-300 px-3 py-1 text-sm disabled:opacity-50"
-          >
-            Next
-          </button>
-        </div>
-      )}
+      <div className="mt-4 flex items-center justify-center gap-2">
+        <button
+          onClick={() => onPageChange(page - 1)}
+          disabled={page <= 1}
+          className="rounded border border-gray-300 px-3 py-1 text-sm disabled:opacity-50"
+        >
+          Previous
+        </button>
+        <span className="px-3 py-1 text-sm text-gray-600">
+          Page {page} of {totalPages || 1}
+        </span>
+        <button
+          onClick={() => onPageChange(page + 1)}
+          disabled={page >= totalPages || totalPages <= 1}
+          className="rounded border border-gray-300 px-3 py-1 text-sm disabled:opacity-50"
+        >
+          Next
+        </button>
+      </div>
     </div>
   );
 }

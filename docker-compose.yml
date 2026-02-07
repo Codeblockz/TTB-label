@@ -7,7 +7,7 @@ services:
       - .env
     volumes:
       - uploads:/app/uploads
-      - db-data:/app
+      - db-data:/app/data
 
   frontend:
     build: ./frontend
