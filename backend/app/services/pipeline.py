@@ -4,11 +4,9 @@ import time
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models.analysis import AnalysisResult, AnalysisStatus, OverallVerdict
-from app.models.label import Label
+from app.models.analysis import AnalysisResult, AnalysisStatus
 from app.services.compliance.engine import ComplianceEngine
 from app.services.ocr.base import OCRServiceProtocol
-from app.services.storage import save_upload
 
 logger = logging.getLogger(__name__)
 
@@ -22,7 +20,14 @@ class AnalysisPipeline:
         self._ocr = ocr_service
         self._compliance = compliance_engine
 
-    async def run(self, analysis_id: str, label_id: str, image_path: str, db: AsyncSession) -> None:
+    async def run(
+        self,
+        analysis_id: str,
+        label_id: str,
+        image_path: str,
+        db: AsyncSession,
+        application_details: dict | None = None,
+    ) -> None:
         total_start = time.perf_counter()
 
         try:
@@ -45,7 +50,9 @@ class AnalysisPipeline:
             analysis.status = AnalysisStatus.PROCESSING_COMPLIANCE
             await db.commit()
 
-            report, compliance_duration_ms = await self._compliance.analyze(ocr_result.text)
+            report, compliance_duration_ms = await self._compliance.analyze(
+                ocr_result.text, application_details
+            )
 
             analysis.compliance_findings = json.dumps(
                 [f.model_dump() for f in report.findings]

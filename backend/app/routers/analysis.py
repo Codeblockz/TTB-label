@@ -1,42 +1,58 @@
 import json
 import logging
 
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, UploadFile
+from fastapi import APIRouter, BackgroundTasks, Depends, Form, HTTPException, Query, UploadFile
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.dependencies import get_db, get_pipeline
 from app.models.analysis import AnalysisResult, AnalysisStatus
 from app.models.label import Label
+from app.routers import ALLOWED_MIME_TYPES
 from app.schemas.analysis import AnalysisListResponse, AnalysisResponse
-from app.schemas.compliance import ComplianceFinding
+from app.schemas.compliance import ApplicationDetails, ComplianceFinding
 from app.services.pipeline import AnalysisPipeline
 from app.services.storage import save_upload
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/analysis", tags=["analysis"])
 
-ALLOWED_MIME_TYPES = {"image/jpeg", "image/png", "image/webp", "image/tiff"}
+
+def _parse_json(raw: str | None, parser):
+    """Parse a JSON string with the given parser, returning None on failure."""
+    if not raw:
+        return None
+    try:
+        return parser(json.loads(raw))
+    except Exception:
+        return None
+
+
+def _enum_value(field) -> str | None:
+    """Extract .value from an enum, or return the string as-is."""
+    return field.value if hasattr(field, "value") else field
 
 
 def _to_response(analysis: AnalysisResult) -> AnalysisResponse:
-    findings = None
-    if analysis.compliance_findings:
-        try:
-            raw = json.loads(analysis.compliance_findings)
-            findings = [ComplianceFinding(**f) for f in raw]
-        except (json.JSONDecodeError, Exception):
-            findings = None
+    findings = _parse_json(
+        analysis.compliance_findings,
+        lambda data: [ComplianceFinding(**f) for f in data],
+    )
+    app_details = _parse_json(
+        analysis.application_details,
+        lambda data: ApplicationDetails(**data),
+    )
 
     return AnalysisResponse(
         id=analysis.id,
         label_id=analysis.label_id,
-        status=analysis.status.value if hasattr(analysis.status, "value") else analysis.status,
+        status=_enum_value(analysis.status),
         extracted_text=analysis.extracted_text,
         ocr_confidence=analysis.ocr_confidence,
         ocr_duration_ms=analysis.ocr_duration_ms,
         compliance_findings=findings,
-        overall_verdict=analysis.overall_verdict.value if hasattr(analysis.overall_verdict, "value") else analysis.overall_verdict,
+        application_details=app_details,
+        overall_verdict=_enum_value(analysis.overall_verdict),
         compliance_duration_ms=analysis.compliance_duration_ms,
         detected_beverage_type=analysis.detected_beverage_type,
         detected_brand_name=analysis.detected_brand_name,
@@ -51,17 +67,24 @@ async def _run_pipeline(
     label_id: str,
     image_path: str,
     pipeline: AnalysisPipeline,
+    application_details: dict | None = None,
 ) -> None:
     from app.dependencies import session_factory
 
     async with session_factory() as db:
-        await pipeline.run(analysis_id, label_id, image_path, db)
+        await pipeline.run(analysis_id, label_id, image_path, db, application_details)
 
 
 @router.post("/single")
 async def analyze_single(
     file: UploadFile,
     background_tasks: BackgroundTasks,
+    brand_name: str = Form(...),
+    class_type: str | None = Form(None),
+    alcohol_content: str | None = Form(None),
+    net_contents: str | None = Form(None),
+    bottler_name_address: str | None = Form(None),
+    country_of_origin: str | None = Form(None),
     db: AsyncSession = Depends(get_db),
 ):
     if file.content_type not in ALLOWED_MIME_TYPES:
@@ -71,6 +94,19 @@ async def analyze_single(
         )
 
     stored_path, file_size = await save_upload(file)
+
+    app_details = {
+        key: value
+        for key, value in {
+            "brand_name": brand_name,
+            "class_type": class_type,
+            "alcohol_content": alcohol_content,
+            "net_contents": net_contents,
+            "bottler_name_address": bottler_name_address,
+            "country_of_origin": country_of_origin,
+        }.items()
+        if value is not None
+    }
 
     label = Label(
         original_filename=file.filename or "unknown",
@@ -84,12 +120,13 @@ async def analyze_single(
     analysis = AnalysisResult(
         label_id=label.id,
         status=AnalysisStatus.PENDING,
+        application_details=json.dumps(app_details),
     )
     db.add(analysis)
     await db.commit()
 
     pipeline = get_pipeline()
-    background_tasks.add_task(_run_pipeline, analysis.id, label.id, stored_path, pipeline)
+    background_tasks.add_task(_run_pipeline, analysis.id, label.id, stored_path, pipeline, app_details)
 
     return {"analysis_id": analysis.id}
 

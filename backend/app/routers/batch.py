@@ -1,8 +1,10 @@
 import asyncio
+import csv
+import io
 import json
 import logging
 
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, UploadFile
+from fastapi import APIRouter, BackgroundTasks, Depends, File, HTTPException, UploadFile
 from fastapi.responses import StreamingResponse
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -11,14 +13,13 @@ from app.dependencies import get_db, get_pipeline
 from app.models.analysis import AnalysisResult, AnalysisStatus
 from app.models.batch import BatchJob, BatchStatus
 from app.models.label import Label
+from app.routers import ALLOWED_MIME_TYPES
 from app.schemas.batch import BatchDetailResponse, BatchResponse
 from app.services.pipeline import AnalysisPipeline
 from app.services.storage import save_upload
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/batch", tags=["batch"])
-
-ALLOWED_MIME_TYPES = {"image/jpeg", "image/png", "image/webp", "image/tiff"}
 
 
 async def _run_batch_pipeline(batch_id: str, items: list[dict], pipeline: AnalysisPipeline) -> None:
@@ -33,7 +34,13 @@ async def _run_batch_pipeline(batch_id: str, items: list[dict], pipeline: Analys
 
         for item in items:
             try:
-                await pipeline.run(item["analysis_id"], item["label_id"], item["image_path"], db)
+                await pipeline.run(
+                    item["analysis_id"],
+                    item["label_id"],
+                    item["image_path"],
+                    db,
+                    item.get("application_details"),
+                )
                 batch.completed_labels += 1
             except Exception as exc:
                 logger.exception("Batch item failed: %s", exc)
@@ -47,11 +54,31 @@ async def _run_batch_pipeline(batch_id: str, items: list[dict], pipeline: Analys
 @router.post("/upload")
 async def upload_batch(
     files: list[UploadFile],
+    csv_file: UploadFile,
     background_tasks: BackgroundTasks,
     db: AsyncSession = Depends(get_db),
 ):
     if not files:
         raise HTTPException(status_code=400, detail="No files provided")
+
+    # Parse CSV for application details
+    csv_content = await csv_file.read()
+    csv_text = csv_content.decode("utf-8-sig")
+    reader = csv.DictReader(io.StringIO(csv_text))
+
+    details_by_filename: dict[str, dict] = {}
+    for row in reader:
+        filename = row.get("filename", "").strip()
+        if filename:
+            details: dict[str, str] = {}
+            for field in [
+                "brand_name", "class_type", "alcohol_content",
+                "net_contents", "bottler_name_address", "country_of_origin",
+            ]:
+                value = row.get(field, "").strip()
+                if value:
+                    details[field] = value
+            details_by_filename[filename.lower()] = details
 
     batch = BatchJob(total_labels=len(files))
     db.add(batch)
@@ -64,8 +91,12 @@ async def upload_batch(
 
         stored_path, file_size = await save_upload(file)
 
+        # Match filename to CSV row (case-insensitive)
+        filename = file.filename or "unknown"
+        app_details = details_by_filename.get(filename.lower())
+
         label = Label(
-            original_filename=file.filename or "unknown",
+            original_filename=filename,
             stored_filepath=stored_path,
             file_size_bytes=file_size,
             mime_type=file.content_type or "application/octet-stream",
@@ -77,6 +108,7 @@ async def upload_batch(
         analysis = AnalysisResult(
             label_id=label.id,
             status=AnalysisStatus.PENDING,
+            application_details=json.dumps(app_details) if app_details else None,
         )
         db.add(analysis)
         await db.flush()
@@ -85,6 +117,7 @@ async def upload_batch(
             "analysis_id": analysis.id,
             "label_id": label.id,
             "image_path": stored_path,
+            "application_details": app_details,
         })
 
     await db.commit()
