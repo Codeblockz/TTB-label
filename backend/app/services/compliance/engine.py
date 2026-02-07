@@ -3,7 +3,7 @@ import logging
 import time
 
 from app.schemas.compliance import ComplianceFinding, ComplianceReport, Severity
-from app.services.compliance.prompts import COMPLIANCE_ANALYSIS_PROMPT
+from app.services.compliance.prompts import build_prompt
 from app.services.compliance.rules import run_regex_rules
 from app.services.llm.base import LLMServiceProtocol
 
@@ -42,12 +42,12 @@ class ComplianceEngine:
     def __init__(self, llm_service: LLMServiceProtocol) -> None:
         self._llm = llm_service
 
-    async def analyze(self, text: str) -> tuple[ComplianceReport, int]:
+    async def analyze(self, text: str, application_details: dict | None = None) -> tuple[ComplianceReport, int]:
         start = time.perf_counter()
 
         regex_findings = run_regex_rules(text)
 
-        prompt = COMPLIANCE_ANALYSIS_PROMPT % text
+        prompt = build_prompt(text, application_details)
         raw_response = await self._llm.analyze_compliance(text, prompt)
         llm_findings, beverage_type, brand_name = _parse_llm_findings(raw_response)
 

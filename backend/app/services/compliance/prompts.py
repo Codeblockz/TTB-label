@@ -29,4 +29,49 @@ Return ONLY valid JSON in this format:
 LABEL TEXT:
 ---
 %s
----"""
+---
+"""
+
+APPLICATION_MATCHING_SECTION = """
+Additionally, the following application details have been submitted for this label. Compare each provided field against what you found in the label text and report whether they match:
+
+APPLICATION DETAILS:
+%s
+
+For each provided application detail, add a matching finding with:
+- rule_id: one of BRAND_MATCH, CLASS_TYPE_MATCH, ALCOHOL_MATCH, NET_CONTENTS_MATCH, NAME_ADDRESS_MATCH, ORIGIN_MATCH
+- rule_name: human-readable name (e.g., "Brand Name Match")
+- severity: "pass" if the label matches the application, "fail" if it doesn't match
+- message: "Expected: [application value]. Found: [label value]." or "Expected: [application value]. Not found on label."
+- extracted_value: the relevant text found on the label (null if not found)
+- regulation_reference: null
+
+Include these matching findings in the same "findings" array alongside the compliance findings.
+"""
+
+FIELD_LABELS = {
+    "brand_name": "Brand Name",
+    "class_type": "Class/Type Designation",
+    "alcohol_content": "Alcohol Content",
+    "net_contents": "Net Contents",
+    "bottler_name_address": "Bottler Name & Address",
+    "country_of_origin": "Country of Origin",
+}
+
+
+def build_prompt(label_text: str, application_details: dict | None = None) -> str:
+    prompt = COMPLIANCE_ANALYSIS_PROMPT % label_text
+
+    if not application_details:
+        return prompt
+
+    details_lines = [
+        f"- {FIELD_LABELS.get(key, key)}: {value}"
+        for key, value in application_details.items()
+        if value
+    ]
+    if details_lines:
+        details_text = "\n".join(details_lines)
+        prompt += APPLICATION_MATCHING_SECTION % details_text
+
+    return prompt

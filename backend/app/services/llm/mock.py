@@ -59,7 +59,65 @@ MOCK_LLM_RESPONSE = {
 }
 
 
+MOCK_MATCHING_FINDINGS = [
+    {
+        "rule_id": "BRAND_MATCH",
+        "rule_name": "Brand Name Match",
+        "severity": "pass",
+        "message": "Expected: OLD TOM DISTILLERY. Found: OLD TOM DISTILLERY.",
+        "extracted_value": "OLD TOM DISTILLERY",
+        "regulation_reference": None
+    },
+    {
+        "rule_id": "CLASS_TYPE_MATCH",
+        "rule_name": "Class/Type Match",
+        "severity": "pass",
+        "message": "Expected: Kentucky Straight Bourbon Whiskey. Found: Kentucky Straight Bourbon Whiskey.",
+        "extracted_value": "Kentucky Straight Bourbon Whiskey",
+        "regulation_reference": None
+    },
+    {
+        "rule_id": "ALCOHOL_MATCH",
+        "rule_name": "Alcohol Content Match",
+        "severity": "pass",
+        "message": "Expected: 45% Alc./Vol.. Found: 45% Alc./Vol..",
+        "extracted_value": "45% Alc./Vol.",
+        "regulation_reference": None
+    },
+    {
+        "rule_id": "NET_CONTENTS_MATCH",
+        "rule_name": "Net Contents Match",
+        "severity": "pass",
+        "message": "Expected: 750 mL. Found: 750 mL.",
+        "extracted_value": "750 mL",
+        "regulation_reference": None
+    },
+    {
+        "rule_id": "NAME_ADDRESS_MATCH",
+        "rule_name": "Name & Address Match",
+        "severity": "pass",
+        "message": "Expected: Old Tom Distillery, Louisville, Kentucky. Found: Old Tom Distillery, Louisville, Kentucky.",
+        "extracted_value": "Old Tom Distillery, Louisville, Kentucky",
+        "regulation_reference": None
+    },
+    {
+        "rule_id": "ORIGIN_MATCH",
+        "rule_name": "Country of Origin Match",
+        "severity": "pass",
+        "message": "Expected: USA. Found: Product of USA.",
+        "extracted_value": "Product of USA",
+        "regulation_reference": None
+    },
+]
+
+
 class MockLLMService:
     async def analyze_compliance(self, text: str, prompt: str) -> str:
         await asyncio.sleep(random.uniform(0.8, 1.2))
-        return json.dumps(MOCK_LLM_RESPONSE)
+        response = dict(MOCK_LLM_RESPONSE)
+        if "APPLICATION DETAILS:" in prompt:
+            response = {
+                **MOCK_LLM_RESPONSE,
+                "findings": MOCK_LLM_RESPONSE["findings"] + MOCK_MATCHING_FINDINGS,
+            }
+        return json.dumps(response)
