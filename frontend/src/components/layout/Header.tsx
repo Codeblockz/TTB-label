@@ -2,6 +2,7 @@ import { Link, useLocation } from "react-router";
 
 const NAV_ITEMS = [
   { to: "/", label: "Upload" },
+  { to: "/batch", label: "Batch" },
   { to: "/history", label: "History" },
 ];
 
