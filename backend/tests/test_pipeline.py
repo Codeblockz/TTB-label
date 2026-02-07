@@ -1,3 +1,5 @@
+import json
+
 import pytest
 import pytest_asyncio
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
@@ -87,3 +89,61 @@ async def test_pipeline_sets_beverage_type(pipeline_db: AsyncSession, pipeline: 
     await pipeline_db.refresh(analysis)
     assert analysis.detected_beverage_type is not None
     assert analysis.detected_brand_name is not None
+
+
+@pytest.mark.asyncio
+async def test_pipeline_with_application_details(pipeline_db: AsyncSession, pipeline: AnalysisPipeline):
+    label = Label(
+        original_filename="bourbon.jpg",
+        stored_filepath="/tmp/bourbon.jpg",
+        file_size_bytes=2048,
+        mime_type="image/jpeg",
+    )
+    pipeline_db.add(label)
+    await pipeline_db.flush()
+
+    analysis = AnalysisResult(label_id=label.id, status=AnalysisStatus.PENDING)
+    pipeline_db.add(analysis)
+    await pipeline_db.commit()
+
+    app_details = {
+        "brand_name": "OLD TOM DISTILLERY",
+        "class_type": "Kentucky Straight Bourbon Whiskey",
+        "alcohol_content": "45% Alc./Vol.",
+    }
+
+    await pipeline.run(analysis.id, label.id, "/tmp/bourbon.jpg", pipeline_db, app_details)
+
+    await pipeline_db.refresh(analysis)
+    assert analysis.status == AnalysisStatus.COMPLETED
+    assert analysis.compliance_findings is not None
+    # Should contain matching findings (BRAND_MATCH, CLASS_TYPE_MATCH, etc.)
+    findings = json.loads(analysis.compliance_findings)
+    matching_ids = [f["rule_id"] for f in findings if f["rule_id"].endswith("_MATCH")]
+    assert len(matching_ids) > 0
+    assert "BRAND_MATCH" in matching_ids
+
+
+@pytest.mark.asyncio
+async def test_pipeline_without_application_details(pipeline_db: AsyncSession, pipeline: AnalysisPipeline):
+    label = Label(
+        original_filename="test.jpg",
+        stored_filepath="/tmp/test.jpg",
+        file_size_bytes=1024,
+        mime_type="image/jpeg",
+    )
+    pipeline_db.add(label)
+    await pipeline_db.flush()
+
+    analysis = AnalysisResult(label_id=label.id, status=AnalysisStatus.PENDING)
+    pipeline_db.add(analysis)
+    await pipeline_db.commit()
+
+    await pipeline.run(analysis.id, label.id, "/tmp/test.jpg", pipeline_db)
+
+    await pipeline_db.refresh(analysis)
+    assert analysis.status == AnalysisStatus.COMPLETED
+    # Should NOT contain matching findings
+    findings = json.loads(analysis.compliance_findings)
+    matching_ids = [f["rule_id"] for f in findings if f["rule_id"].endswith("_MATCH")]
+    assert len(matching_ids) == 0
