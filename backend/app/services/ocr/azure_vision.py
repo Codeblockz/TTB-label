@@ -5,7 +5,7 @@ from azure.ai.vision.imageanalysis import ImageAnalysisClient
 from azure.ai.vision.imageanalysis.models import VisualFeatures
 from azure.core.credentials import AzureKeyCredential
 
-from app.services.ocr.base import OCRResult
+from app.services.ocr.base import OCRLine, OCRResult
 
 
 class AzureVisionOCRService:
@@ -30,17 +30,28 @@ class AzureVisionOCRService:
 
         result = await asyncio.to_thread(self._extract_sync, image_data)
 
-        lines: list[str] = []
+        text_lines: list[str] = []
         confidences: list[float] = []
+        ocr_lines: list[OCRLine] = []
         if result.read and result.read.blocks:
             for block in result.read.blocks:
                 for line in block.lines:
-                    lines.append(line.text)
+                    text_lines.append(line.text)
+                    polygon = [
+                        (int(pt.x), int(pt.y))
+                        for pt in line.bounding_polygon
+                    ]
+                    ocr_lines.append(OCRLine(text=line.text, bounding_polygon=polygon))
                     for word in line.words:
                         confidences.append(word.confidence)
 
-        text = "\n".join(lines)
+        text = "\n".join(text_lines)
         avg_confidence = sum(confidences) / len(confidences) if confidences else 0.0
         duration_ms = int((time.perf_counter() - start) * 1000)
 
-        return OCRResult(text=text, confidence=avg_confidence, duration_ms=duration_ms)
+        return OCRResult(
+            text=text,
+            confidence=avg_confidence,
+            duration_ms=duration_ms,
+            lines=ocr_lines,
+        )

@@ -33,4 +33,7 @@ Had to change the buissness logic of checking labels. The llm was doing checks f
 Feb 8. Thought about the government warning label, I messed up how the program searches for it. I will fix it now. I just reliezed I dont check for bold. I will need to add
 that check.
 
-Now its slow again, about 6 seconds.
+Now its slow again, about 6 seconds. I feel like using the LLM just for bold is overkill, not to mention expensive. I will research alternatives.
+Found openCV could be used for bold. I don't think it will work for this case because it needs non bold as a reference and there isnt a good way to anchor those.
+However, I will test it anyways and see if it works.
+

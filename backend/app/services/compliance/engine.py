@@ -3,7 +3,7 @@ import logging
 import time
 
 from app.schemas.compliance import ComplianceFinding, ComplianceReport, Severity
-from app.services.compliance.prompts import build_bold_check_prompt, build_focused_prompt
+from app.services.compliance.prompts import build_focused_prompt
 from app.services.compliance.rules import (
     run_application_matching,
     run_regex_rules,
@@ -71,6 +71,7 @@ class ComplianceEngine:
         text: str,
         application_details: dict | None = None,
         image_path: str | None = None,
+        bold_result: bool | None = None,
     ) -> tuple[ComplianceReport, int]:
         start = time.perf_counter()
 
@@ -93,21 +94,18 @@ class ComplianceEngine:
         ]
         rules_for_llm = failed_rule_ids + warning_gov_ids
 
-        # Step 4: Always call LLM (at minimum for bold check)
+        # Step 4: Call LLM only if regex rules need verification (text-only, no image)
+        llm: _LLMResult | None = None
         if rules_for_llm:
-            logger.info("Sending rules to LLM: %s", rules_for_llm)
+            logger.info("Sending rules to LLM (text-only): %s", rules_for_llm)
             prompt = build_focused_prompt(text, rules_for_llm)
+            raw_response = await self._llm.analyze_compliance(text, prompt)
+            llm = _LLMResult(raw_response)
         else:
-            logger.info("All regex rules passed — calling LLM for bold check only")
-            prompt = build_bold_check_prompt(text)
-
-        raw_response = await self._llm.analyze_compliance(
-            text, prompt, image_path=image_path,
-        )
-        llm = _LLMResult(raw_response)
+            logger.info("All regex rules passed — skipping LLM call")
 
         # Replace failed/warned regex findings with LLM results where available
-        if rules_for_llm:
+        if llm and rules_for_llm:
             llm_by_rule = {f.rule_id: f for f in llm.findings}
             needs_llm = set(rules_for_llm)
             merged_findings = []
@@ -120,19 +118,22 @@ class ComplianceEngine:
             regex_findings = merged_findings
 
         # Fall back to regex extraction if LLM didn't provide metadata
-        beverage_type = llm.beverage_type or _extract_beverage_type(regex_findings)
-        brand_name = llm.brand_name or _extract_brand_name(text)
+        beverage_type = (llm.beverage_type if llm else None) or _extract_beverage_type(regex_findings)
+        brand_name = (llm.brand_name if llm else None) or _extract_brand_name(text)
 
-        # Step 5: Append bold check finding
-        if llm.gov_warning_bold is not None:
-            is_bold = llm.gov_warning_bold
+        # Step 5: Append bold check finding (from parallel bold_result or LLM)
+        effective_bold = bold_result
+        if effective_bold is None and llm is not None:
+            effective_bold = llm.gov_warning_bold
+
+        if effective_bold is not None:
             regex_findings.append(ComplianceFinding(
                 rule_id="GOV_WARNING_BOLD",
                 rule_name="Government Warning Bold Format",
-                severity=Severity.PASS if is_bold else Severity.WARNING,
+                severity=Severity.PASS if effective_bold else Severity.WARNING,
                 message=(
                     "'GOVERNMENT WARNING:' appears in required bold type"
-                    if is_bold else
+                    if effective_bold else
                     "'GOVERNMENT WARNING:' may not be in required bold type"
                 ),
                 regulation_reference="27 CFR 16.21",

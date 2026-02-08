@@ -1,10 +1,15 @@
 import json
+import os
 from unittest.mock import AsyncMock
 
+import cv2
+import numpy as np
 import pytest
 
 from app.schemas.compliance import Severity
+from app.services.compliance.bold_check import check_bold_opencv
 from app.services.compliance.engine import ComplianceEngine
+from app.services.ocr.base import OCRLine
 from app.services.compliance.rules import (
     check_alcohol_content,
     check_brand_name,
@@ -373,6 +378,97 @@ class TestRunAllRegexRules:
         assert info_count == 3  # COUNTRY_ORIGIN + GOV_WARNING_FORMAT + GOV_WARNING_COMPLETE
 
 
+FIXTURES_DIR = os.path.join(os.path.dirname(__file__), "fixtures")
+
+
+def _make_bold_test_image(bold_thickness: int = 3, body_thickness: int = 1) -> str:
+    """Create a temporary image with bold header and normal body text."""
+    img = np.ones((200, 800, 3), dtype=np.uint8) * 255
+    cv2.putText(img, "GOVERNMENT WARNING:", (20, 60),
+                cv2.FONT_HERSHEY_SIMPLEX, 1.0, (0, 0, 0), bold_thickness)
+    cv2.putText(img, "Women should not drink alcoholic", (20, 120),
+                cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 0), body_thickness)
+    path = os.path.join(FIXTURES_DIR, "_test_bold_tmp.png")
+    cv2.imwrite(path, img)
+    return path
+
+
+# --- OpenCV Bold Check Tests ---
+
+class TestCheckBoldOpenCV:
+    def test_synthetic_bold_detected(self):
+        path = _make_bold_test_image(bold_thickness=3, body_thickness=1)
+        try:
+            lines = [
+                OCRLine(text="GOVERNMENT WARNING:",
+                        bounding_polygon=[(20, 35), (580, 35), (580, 75), (20, 75)]),
+                OCRLine(text="Women should not drink alcoholic",
+                        bounding_polygon=[(20, 95), (580, 95), (580, 135), (20, 135)]),
+            ]
+            result = check_bold_opencv(path, lines)
+            assert result is True
+        finally:
+            os.unlink(path)
+
+    def test_synthetic_same_weight_not_bold(self):
+        path = _make_bold_test_image(bold_thickness=1, body_thickness=1)
+        try:
+            lines = [
+                OCRLine(text="GOVERNMENT WARNING:",
+                        bounding_polygon=[(20, 35), (580, 35), (580, 75), (20, 75)]),
+                OCRLine(text="Women should not drink alcoholic",
+                        bounding_polygon=[(20, 95), (580, 95), (580, 135), (20, 135)]),
+            ]
+            result = check_bold_opencv(path, lines)
+            assert result is False
+        finally:
+            os.unlink(path)
+
+    def test_real_label_river_vodka(self):
+        path = os.path.join(FIXTURES_DIR, "river_vodka.png")
+        lines = [
+            OCRLine(text="GOVERNMENT WARNING: (1) ACCORDING TO THE SURGEON GENERAL, WOMEN",
+                    bounding_polygon=[(116, 1228), (746, 1228), (746, 1249), (116, 1249)]),
+            OCRLine(text="SHOULD NOT DRINK ALCOHOLIC BEVERAGES DURING PREGNANCY BECAUSE OF THE",
+                    bounding_polygon=[(116, 1265), (851, 1265), (851, 1285), (116, 1285)]),
+        ]
+        result = check_bold_opencv(path, lines)
+        assert result is True
+
+    def test_missing_header_returns_none(self):
+        path = os.path.join(FIXTURES_DIR, "river_vodka.png")
+        lines = [
+            OCRLine(text="RIVERSTONE VODKA",
+                    bounding_polygon=[(200, 200), (800, 200), (800, 300), (200, 300)]),
+        ]
+        result = check_bold_opencv(path, lines)
+        assert result is None
+
+    def test_empty_lines_returns_none(self):
+        path = os.path.join(FIXTURES_DIR, "river_vodka.png")
+        result = check_bold_opencv(path, [])
+        assert result is None
+
+    def test_header_without_body_returns_none(self):
+        path = os.path.join(FIXTURES_DIR, "river_vodka.png")
+        lines = [
+            OCRLine(text="GOVERNMENT WARNING:",
+                    bounding_polygon=[(116, 1228), (350, 1228), (350, 1249), (116, 1249)]),
+        ]
+        result = check_bold_opencv(path, lines)
+        assert result is None
+
+    def test_bad_image_path_returns_none(self):
+        lines = [
+            OCRLine(text="GOVERNMENT WARNING:",
+                    bounding_polygon=[(20, 35), (580, 35), (580, 75), (20, 75)]),
+            OCRLine(text="Women should not drink alcoholic beverages",
+                    bounding_polygon=[(20, 95), (580, 95), (580, 135), (20, 135)]),
+        ]
+        result = check_bold_opencv("/tmp/nonexistent_label.png", lines)
+        assert result is None
+
+
 # --- Engine Integration Tests ---
 
 def _make_llm_response(
@@ -393,44 +489,26 @@ def _make_llm_response(
 
 class TestComplianceEngine:
     @pytest.mark.asyncio
-    async def test_always_calls_llm_for_bold_check(self):
+    async def test_skips_llm_when_all_regex_pass_and_bold_provided(self):
         mock_llm = AsyncMock()
-        mock_llm.analyze_compliance.return_value = _make_llm_response(
-            gov_warning_bold=True,
-        )
 
         engine = ComplianceEngine(mock_llm)
-        report, _ = await engine.analyze(COMPLETE_LABEL_WITH_WARNING)
+        report, _ = await engine.analyze(
+            COMPLETE_LABEL_WITH_WARNING, bold_result=True,
+        )
 
-        # LLM SHOULD be called (for bold check)
-        mock_llm.analyze_compliance.assert_called_once()
+        # LLM should NOT be called — bold handled externally, all regex passed
+        mock_llm.analyze_compliance.assert_not_called()
         assert report.overall_verdict == "pass"
-
-    @pytest.mark.asyncio
-    async def test_bold_check_prompt_when_all_regex_pass(self):
-        mock_llm = AsyncMock()
-        mock_llm.analyze_compliance.return_value = _make_llm_response(
-            gov_warning_bold=True,
-        )
-
-        engine = ComplianceEngine(mock_llm)
-        await engine.analyze(COMPLETE_LABEL_WITH_WARNING)
-
-        prompt = mock_llm.analyze_compliance.call_args[0][1]
-        assert "bold" in prompt.lower()
-        # Should NOT have focused rule checks
-        assert "GOV_WARNING_PRESENCE" not in prompt
-        assert "CLASS_TYPE" not in prompt
 
     @pytest.mark.asyncio
     async def test_bold_true_appends_pass_finding(self):
         mock_llm = AsyncMock()
-        mock_llm.analyze_compliance.return_value = _make_llm_response(
-            gov_warning_bold=True,
-        )
 
         engine = ComplianceEngine(mock_llm)
-        report, _ = await engine.analyze(COMPLETE_LABEL_WITH_WARNING)
+        report, _ = await engine.analyze(
+            COMPLETE_LABEL_WITH_WARNING, bold_result=True,
+        )
 
         bold_finding = next(
             (f for f in report.findings if f.rule_id == "GOV_WARNING_BOLD"), None,
@@ -441,12 +519,11 @@ class TestComplianceEngine:
     @pytest.mark.asyncio
     async def test_bold_false_appends_warning_finding(self):
         mock_llm = AsyncMock()
-        mock_llm.analyze_compliance.return_value = _make_llm_response(
-            gov_warning_bold=False,
-        )
 
         engine = ComplianceEngine(mock_llm)
-        report, _ = await engine.analyze(COMPLETE_LABEL_WITH_WARNING)
+        report, _ = await engine.analyze(
+            COMPLETE_LABEL_WITH_WARNING, bold_result=False,
+        )
 
         bold_finding = next(
             (f for f in report.findings if f.rule_id == "GOV_WARNING_BOLD"), None,
@@ -456,9 +533,8 @@ class TestComplianceEngine:
         assert report.overall_verdict == "warnings"
 
     @pytest.mark.asyncio
-    async def test_no_bold_finding_when_not_in_response(self):
+    async def test_no_bold_finding_when_no_bold_result(self):
         mock_llm = AsyncMock()
-        mock_llm.analyze_compliance.return_value = _make_llm_response()
 
         engine = ComplianceEngine(mock_llm)
         report, _ = await engine.analyze(COMPLETE_LABEL_WITH_WARNING)
@@ -480,7 +556,6 @@ class TestComplianceEngine:
                 "extracted_value": "Artisanal Spirit",
                 "regulation_reference": "27 CFR 5.63(a)(2)",
             }],
-            gov_warning_bold=True,
             beverage_type="Distilled Spirits",
             brand_name="OLD TOM DISTILLERY",
         )
@@ -496,9 +571,9 @@ Distilled by Old Tom Distillery, Louisville, KY
 Product of USA"""
 
         engine = ComplianceEngine(mock_llm)
-        report, _ = await engine.analyze(text)
+        report, _ = await engine.analyze(text, bold_result=True)
 
-        # LLM should have been called
+        # LLM should have been called for the failed CLASS_TYPE rule
         mock_llm.analyze_compliance.assert_called_once()
         prompt = mock_llm.analyze_compliance.call_args[0][1]
         assert "CLASS_TYPE" in prompt
@@ -514,9 +589,7 @@ Product of USA"""
     async def test_llm_gets_gov_warning_warnings(self):
         """Gov warning format/completeness WARNINGs should trigger LLM verification."""
         mock_llm = AsyncMock()
-        mock_llm.analyze_compliance.return_value = _make_llm_response(
-            gov_warning_bold=True,
-        )
+        mock_llm.analyze_compliance.return_value = _make_llm_response()
 
         # Lowercase header triggers GOV_WARNING_FORMAT warning
         text = """Government Warning: (1) According to the Surgeon General, women should not drink alcoholic beverages during pregnancy because of the risk of birth defects. (2) Consumption of alcoholic beverages impairs your ability to drive a car or operate machinery, and may cause health problems.
@@ -529,37 +602,44 @@ Distilled by Old Tom Distillery, Louisville, KY
 Product of USA"""
 
         engine = ComplianceEngine(mock_llm)
-        await engine.analyze(text)
+        await engine.analyze(text, bold_result=True)
 
         prompt = mock_llm.analyze_compliance.call_args[0][1]
         assert "GOV_WARNING_FORMAT" in prompt
 
     @pytest.mark.asyncio
-    async def test_image_path_threaded_to_llm(self):
+    async def test_text_only_llm_call_skips_image(self):
+        """When LLM is called for failed regex rules, image should not be sent."""
         mock_llm = AsyncMock()
-        mock_llm.analyze_compliance.return_value = _make_llm_response(
-            gov_warning_bold=True,
-        )
+        mock_llm.analyze_compliance.return_value = _make_llm_response()
+
+        # Missing class type triggers LLM call
+        text = """GOVERNMENT WARNING: (1) ACCORDING TO THE SURGEON GENERAL, WOMEN SHOULD NOT DRINK ALCOHOLIC BEVERAGES DURING PREGNANCY BECAUSE OF THE RISK OF BIRTH DEFECTS. (2) CONSUMPTION OF ALCOHOLIC BEVERAGES IMPAIRS YOUR ABILITY TO DRIVE A CAR OR OPERATE MACHINERY, AND MAY CAUSE HEALTH PROBLEMS.
+
+OLD TOM DISTILLERY
+Artisanal Spirit 2024
+45% Alc./Vol. (90 Proof)
+750 mL
+Distilled by Old Tom Distillery, Louisville, KY
+Product of USA"""
 
         engine = ComplianceEngine(mock_llm)
-        await engine.analyze(
-            COMPLETE_LABEL_WITH_WARNING, image_path="/tmp/label.jpg",
-        )
+        await engine.analyze(text, image_path="/tmp/label.jpg", bold_result=True)
 
+        # LLM called for text-only check — should NOT include image_path
+        mock_llm.analyze_compliance.assert_called_once()
         _, kwargs = mock_llm.analyze_compliance.call_args
-        assert kwargs["image_path"] == "/tmp/label.jpg"
+        assert "image_path" not in kwargs or kwargs.get("image_path") is None
 
     @pytest.mark.asyncio
     async def test_includes_application_matching(self):
         mock_llm = AsyncMock()
-        mock_llm.analyze_compliance.return_value = _make_llm_response(
-            gov_warning_bold=True,
-        )
 
         app_details = {"brand_name": "OLD TOM DISTILLERY"}
         engine = ComplianceEngine(mock_llm)
         report, _ = await engine.analyze(
             COMPLETE_LABEL_WITH_WARNING, application_details=app_details,
+            bold_result=True,
         )
 
         rule_ids = [f.rule_id for f in report.findings]
@@ -568,9 +648,7 @@ Product of USA"""
     @pytest.mark.asyncio
     async def test_focused_prompt_only_includes_failed_rules(self):
         mock_llm = AsyncMock()
-        mock_llm.analyze_compliance.return_value = _make_llm_response(
-            gov_warning_bold=True,
-        )
+        mock_llm.analyze_compliance.return_value = _make_llm_response()
 
         # Missing class type AND name/address
         text = """GOVERNMENT WARNING: (1) ACCORDING TO THE SURGEON GENERAL, WOMEN SHOULD NOT DRINK ALCOHOLIC BEVERAGES DURING PREGNANCY BECAUSE OF THE RISK OF BIRTH DEFECTS. (2) CONSUMPTION OF ALCOHOLIC BEVERAGES IMPAIRS YOUR ABILITY TO DRIVE A CAR OR OPERATE MACHINERY, AND MAY CAUSE HEALTH PROBLEMS.
@@ -581,7 +659,7 @@ Artisanal Spirit 2024
 750 mL"""
 
         engine = ComplianceEngine(mock_llm)
-        await engine.analyze(text)
+        await engine.analyze(text, bold_result=True)
 
         prompt = mock_llm.analyze_compliance.call_args[0][1]
         assert "CLASS_TYPE" in prompt
@@ -594,12 +672,11 @@ Artisanal Spirit 2024
     @pytest.mark.asyncio
     async def test_returns_duration_ms(self):
         mock_llm = AsyncMock()
-        mock_llm.analyze_compliance.return_value = _make_llm_response(
-            gov_warning_bold=True,
-        )
 
         engine = ComplianceEngine(mock_llm)
-        _, duration_ms = await engine.analyze(COMPLETE_LABEL_WITH_WARNING)
+        _, duration_ms = await engine.analyze(
+            COMPLETE_LABEL_WITH_WARNING, bold_result=True,
+        )
 
         assert isinstance(duration_ms, int)
         assert duration_ms >= 0

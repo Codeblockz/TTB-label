@@ -5,6 +5,7 @@ import time
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.analysis import AnalysisResult, AnalysisStatus
+from app.services.compliance.bold_check import check_bold_opencv
 from app.services.compliance.engine import ComplianceEngine
 from app.services.ocr.base import OCRServiceProtocol
 
@@ -42,16 +43,39 @@ class AnalysisPipeline:
 
             ocr_result = await self._ocr.extract_text(image_path)
 
+            logger.info(
+                "Analysis %s OCR completed: %dms",
+                analysis_id, ocr_result.duration_ms,
+            )
+
             analysis.extracted_text = ocr_result.text
             analysis.ocr_confidence = ocr_result.confidence
             analysis.ocr_duration_ms = ocr_result.duration_ms
 
-            # Stage 2: Compliance
+            # Stage 2: OpenCV bold check (sync, <100ms)
+            bold_start = time.perf_counter()
+            bold_result = check_bold_opencv(image_path, ocr_result.lines)
+            bold_ms = int((time.perf_counter() - bold_start) * 1000)
+
+            logger.info(
+                "Analysis %s bold check: %dms (result=%s)",
+                analysis_id, bold_ms, bold_result,
+            )
+
+            # Stage 3: Compliance (text-only, bold already resolved)
             analysis.status = AnalysisStatus.PROCESSING_COMPLIANCE
             await db.commit()
 
+            compliance_start = time.perf_counter()
             report, compliance_duration_ms = await self._compliance.analyze(
                 ocr_result.text, application_details, image_path=image_path,
+                bold_result=bold_result,
+            )
+            compliance_wall_ms = int((time.perf_counter() - compliance_start) * 1000)
+
+            logger.info(
+                "Analysis %s compliance stage: %dms (engine=%dms)",
+                analysis_id, compliance_wall_ms, compliance_duration_ms,
             )
 
             analysis.compliance_findings = json.dumps(
