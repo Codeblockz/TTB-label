@@ -309,7 +309,7 @@ class TestApplicationMatching:
         findings = run_application_matching(COMPLETE_LABEL, details)
         assert len(findings) == 1
         assert findings[0].severity == Severity.PASS
-        assert "words found" in findings[0].message or "expected value" in findings[0].message
+        assert "Expected:" in findings[0].message
 
     def test_multiple_fields(self):
         details = {
@@ -331,6 +331,22 @@ class TestApplicationMatching:
         findings = run_application_matching(COMPLETE_LABEL, details)
         assert len(findings) == 1
         assert findings[0].rule_id == "CLASS_TYPE_MATCH"
+        assert findings[0].severity == Severity.PASS
+
+    def test_substring_no_word_boundary_fails(self):
+        """'pal' should NOT match inside 'PALE ALE' — not a standalone word."""
+        label = "CRAFT BREWERY\nPALE ALE\n5% Alc./Vol.\n12 FL OZ"
+        details = {"brand_name": "pal"}
+        findings = run_application_matching(label, details)
+        assert len(findings) == 1
+        assert findings[0].severity == Severity.FAIL
+
+    def test_word_boundary_match_succeeds(self):
+        """'ale' SHOULD match 'PALE ALE' — it's a standalone word."""
+        label = "CRAFT BREWERY\nPALE ALE\n5% Alc./Vol.\n12 FL OZ"
+        details = {"brand_name": "ale"}
+        findings = run_application_matching(label, details)
+        assert len(findings) == 1
         assert findings[0].severity == Severity.PASS
 
 

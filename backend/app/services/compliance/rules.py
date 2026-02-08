@@ -313,13 +313,13 @@ def run_application_matching(
         if not expected:
             continue
 
-        # Exact substring match (case-insensitive)
-        if expected.lower() in label_lower:
+        # Exact word-boundary match (case-insensitive)
+        if re.search(r'\b' + re.escape(expected) + r'\b', label_text, re.IGNORECASE):
             findings.append(ComplianceFinding(
                 rule_id=rule_id,
                 rule_name=rule_name,
                 severity=Severity.PASS,
-                message=f"Label contains expected value: {expected}",
+                message=f"Expected: {expected}. Found: {expected}.",
                 extracted_value=expected,
             ))
             continue
@@ -337,8 +337,7 @@ def run_application_matching(
                 rule_id=rule_id,
                 rule_name=rule_name,
                 severity=Severity.PASS,
-                message=f"Label approximately matches expected value: {expected} "
-                        f"({len(matched_words)}/{len(expected_words)} words found)",
+                message=f"Expected: {expected}. Found: approximate match ({len(matched_words)}/{len(expected_words)} words).",
                 extracted_value=", ".join(sorted(matched_words)),
             ))
         else:

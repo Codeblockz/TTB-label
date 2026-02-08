@@ -27,3 +27,10 @@ I asked claude code to create a UX testing team to check for functionality. I us
 The application did not show the matching to the form. 
 Fixed that. Moving on the use of mock api interferring with speed test.
 Out of fustration, I had the bot remove all mock points. I will pay for that later.
+
+Had to change the buissness logic of checking labels. The llm was doing checks first with regex as redundency. I switched it for speed.
+
+Feb 8. Thought about the government warning label, I messed up how the program searches for it. I will fix it now. I just reliezed I dont check for bold. I will need to add
+that check.
+
+Now its slow again, about 6 seconds.
