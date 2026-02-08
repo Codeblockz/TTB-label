@@ -20,6 +20,7 @@ class AnalysisResponse(BaseModel):
     detected_brand_name: str | None = None
     error_message: str | None = None
     total_duration_ms: int | None = None
+    image_url: str | None = None
     created_at: datetime
 
     model_config = {"from_attributes": True}

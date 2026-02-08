@@ -2,8 +2,10 @@ import json
 import logging
 
 from fastapi import APIRouter, BackgroundTasks, Depends, Form, HTTPException, Query, UploadFile
+from fastapi.responses import FileResponse
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
 from app.dependencies import get_db, get_pipeline
 from app.models.analysis import AnalysisResult, AnalysisStatus
@@ -58,6 +60,7 @@ def _to_response(analysis: AnalysisResult) -> AnalysisResponse:
         detected_brand_name=analysis.detected_brand_name,
         error_message=analysis.error_message,
         total_duration_ms=analysis.total_duration_ms,
+        image_url=f"/api/analysis/{analysis.id}/image",
         created_at=analysis.created_at,
     )
 
@@ -79,7 +82,7 @@ async def _run_pipeline(
 async def analyze_single(
     file: UploadFile,
     background_tasks: BackgroundTasks,
-    brand_name: str = Form(...),
+    brand_name: str = Form(""),
     class_type: str | None = Form(None),
     alcohol_content: str | None = Form(None),
     net_contents: str | None = Form(None),
@@ -129,6 +132,22 @@ async def analyze_single(
     background_tasks.add_task(_run_pipeline, analysis.id, label.id, stored_path, pipeline, app_details)
 
     return {"analysis_id": analysis.id}
+
+
+@router.get("/{analysis_id}/image")
+async def get_analysis_image(
+    analysis_id: str,
+    db: AsyncSession = Depends(get_db),
+):
+    result = await db.execute(
+        select(AnalysisResult)
+        .options(selectinload(AnalysisResult.label))
+        .where(AnalysisResult.id == analysis_id)
+    )
+    analysis = result.scalar_one_or_none()
+    if not analysis or not analysis.label:
+        raise HTTPException(status_code=404, detail="Image not found")
+    return FileResponse(analysis.label.stored_filepath, media_type=analysis.label.mime_type)
 
 
 @router.get("/{analysis_id}", response_model=AnalysisResponse)

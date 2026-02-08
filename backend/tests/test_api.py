@@ -34,12 +34,12 @@ async def test_upload_single_label(client: AsyncClient):
 
 
 @pytest.mark.asyncio
-async def test_upload_single_requires_brand_name(client: AsyncClient):
+async def test_upload_single_without_brand_name(client: AsyncClient):
     response = await client.post(
         "/api/analysis/single",
         files={"file": ("test_label.png", io.BytesIO(PNG_BYTES), "image/png")},
     )
-    assert response.status_code == 422
+    assert response.status_code == 200
 
 
 @pytest.mark.asyncio

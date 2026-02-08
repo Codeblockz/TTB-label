@@ -60,7 +60,8 @@ For each item, return a JSON finding with:
 - extracted_value: the relevant text from the label (null if not found)
 - regulation_reference: the applicable CFR reference
 
-Also check the label image: Is "GOVERNMENT WARNING:" displayed in BOLD TYPE?
+Also check the label image: Is "GOVERNMENT WARNING:" displayed in BOLD TYPE as required by 27 CFR 16.21?
+Bold means the "GOVERNMENT WARNING:" header text has noticeably heavier/thicker strokes compared to the surrounding warning body text. Compare the weight of the header against the rest of the warning statement — if the header is visually heavier and stands out from the body text, it is bold. Return true if the header is bolder than the body text, false only if they appear the same weight.
 Include "gov_warning_bold": true or false in your JSON response.
 
 Also include:
@@ -84,6 +85,7 @@ LABEL TEXT:
 BOLD_CHECK_PROMPT = """You are an expert TTB compliance analyst. All text-based compliance checks passed for this alcohol label. Check the label image for one remaining item:
 
 Is the "GOVERNMENT WARNING:" header displayed in BOLD TYPE as required by 27 CFR 16.21?
+Bold means the "GOVERNMENT WARNING:" header text has noticeably heavier/thicker strokes compared to the surrounding warning body text. Compare the visual weight of the header against the rest of the warning statement. If the header appears visually heavier and stands out from the body text, it IS bold — return true. Only return false if the header and body text appear to be the same weight/thickness.
 
 Also include:
 - beverage_type: the detected beverage type (e.g., "Distilled Spirits", "Wine", "Malt Beverage")

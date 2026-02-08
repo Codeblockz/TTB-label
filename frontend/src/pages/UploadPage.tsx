@@ -20,7 +20,7 @@ export default function UploadPage() {
   const { upload, analysis, isUploading, isProcessing, error } = useAnalysis();
 
   const isDone = analysis?.status === "completed";
-  const canSubmit = selectedFile && appDetails.brand_name?.trim();
+  const canSubmit = !!selectedFile;
 
   function handleUpload() {
     if (selectedFile && canSubmit) {

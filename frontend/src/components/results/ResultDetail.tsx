@@ -22,7 +22,7 @@ function MatchBadge({ severity }: { severity: string }) {
 }
 
 function parseExpectedValue(message: string): string {
-  const match = message.match(/Expected:\s*(.+?)\.\s*Found:/);
+  const match = message.match(/Expected:\s*(.+?)\.(?:\s*Found:|\s*Not found)/);
   return match?.[1] ?? "N/A";
 }
 
@@ -65,6 +65,17 @@ export default function ResultDetail({ analysis }: ResultDetailProps) {
     <div className="space-y-6">
       {analysis.overall_verdict && (
         <ComplianceSummary verdict={analysis.overall_verdict} findings={allFindings} />
+      )}
+
+      {analysis.image_url && (
+        <div>
+          <h3 className="mb-2 font-medium text-gray-900">Label Image</h3>
+          <img
+            src={analysis.image_url}
+            alt="Label"
+            className="max-h-64 rounded-lg"
+          />
+        </div>
       )}
 
       <div className="grid grid-cols-2 gap-4 rounded-lg border border-gray-200 bg-white p-4 text-sm sm:grid-cols-4">

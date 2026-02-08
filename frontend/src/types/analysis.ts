@@ -42,6 +42,7 @@ export interface AnalysisResponse {
   detected_brand_name: string | null;
   error_message: string | null;
   total_duration_ms: number | null;
+  image_url: string | null;
   created_at: string;
 }
 
