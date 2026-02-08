@@ -15,7 +15,7 @@ from app.services.compliance.engine import ComplianceEngine
 from app.services.pipeline import AnalysisPipeline
 
 FIXTURE_DIR = os.path.join(os.path.dirname(__file__), "fixtures")
-SAMPLE_LABEL = os.path.join(FIXTURE_DIR, "sample_label.jpg")
+SAMPLE_LABEL = os.path.join(FIXTURE_DIR, "river_vodka.png")
 
 
 @pytest_asyncio.fixture
@@ -47,7 +47,7 @@ def real_pipeline():
 
 @pytest.mark.asyncio
 async def test_real_ocr_extracts_text():
-    """Azure Vision OCR reads text from a real bourbon label image."""
+    """Azure Vision OCR reads text from a real vodka label image."""
     from app.services.ocr.azure_vision import AzureVisionOCRService
 
     ocr = AzureVisionOCRService(settings.azure_vision_endpoint, settings.azure_vision_key)
@@ -57,12 +57,12 @@ async def test_real_ocr_extracts_text():
     assert result.confidence > 0.5
     assert result.duration_ms > 0
 
-    # The image contains bourbon bottles — expect some common label terms
+    # The image is a vodka label — expect common label terms
     text_upper = result.text.upper()
     assert any(
         term in text_upper
-        for term in ["BOURBON", "WHISKEY", "PROOF", "ALC", "DISTILL"]
-    ), f"OCR text doesn't contain expected bourbon label terms: {result.text[:300]}"
+        for term in ["VODKA", "PROOF", "ALC", "DISTILL"]
+    ), f"OCR text doesn't contain expected vodka label terms: {result.text[:300]}"
 
 
 @pytest.mark.asyncio
@@ -105,12 +105,12 @@ async def test_real_llm_returns_compliance_json():
 
 @pytest.mark.asyncio
 async def test_real_full_pipeline(db: AsyncSession, real_pipeline: AnalysisPipeline):
-    """Full pipeline with real Azure OCR + LLM against a real label image."""
+    """Full pipeline with real Azure OCR + LLM against a real vodka label image."""
     label = Label(
-        original_filename="sample_label.jpg",
+        original_filename="river_vodka.png",
         stored_filepath=SAMPLE_LABEL,
         file_size_bytes=os.path.getsize(SAMPLE_LABEL),
-        mime_type="image/jpeg",
+        mime_type="image/png",
     )
     db.add(label)
     await db.flush()

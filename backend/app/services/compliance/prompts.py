@@ -32,46 +32,86 @@ LABEL TEXT:
 ---
 """
 
-APPLICATION_MATCHING_SECTION = """
-Additionally, the following application details have been submitted for this label. Compare each provided field against what you found in the label text and report whether they match:
-
-APPLICATION DETAILS:
-%s
-
-For each provided application detail, add a matching finding with:
-- rule_id: one of BRAND_MATCH, CLASS_TYPE_MATCH, ALCOHOL_MATCH, NET_CONTENTS_MATCH, NAME_ADDRESS_MATCH, ORIGIN_MATCH
-- rule_name: human-readable name (e.g., "Brand Name Match")
-- severity: "pass" if the label matches the application, "fail" if it doesn't match
-- message: "Expected: [application value]. Found: [label value]." or "Expected: [application value]. Not found on label."
-- extracted_value: the relevant text found on the label (null if not found)
-- regulation_reference: null
-
-Include these matching findings in the same "findings" array alongside the compliance findings.
-"""
-
-FIELD_LABELS = {
-    "brand_name": "Brand Name",
-    "class_type": "Class/Type Designation",
-    "alcohol_content": "Alcohol Content",
-    "net_contents": "Net Contents",
-    "bottler_name_address": "Bottler Name & Address",
-    "country_of_origin": "Country of Origin",
+FOCUSED_RULE_DESCRIPTIONS = {
+    "BRAND_NAME": "Is a brand name clearly identifiable on this label?",
+    "CLASS_TYPE": "Is a beverage class/type specified (e.g., vodka, whiskey, wine, beer)?",
+    "NAME_ADDRESS": "Is the name and address of the bottler, producer, or importer present?",
+    "COUNTRY_ORIGIN": "For imported products, is the country of origin stated?",
+    "GOV_WARNING_PRESENCE": "Is any form of a government warning statement present on this label?",
+    "GOV_WARNING_FORMAT": "Is 'GOVERNMENT WARNING:' in ALL CAPITAL LETTERS as required by 27 CFR 16.21?",
+    "GOV_WARNING_COMPLETE": (
+        "Are BOTH required clauses of the government warning present? "
+        "(1) Pregnancy risk from the Surgeon General, and "
+        "(2) Impaired ability to drive/operate machinery and health problems."
+    ),
+    "ALCOHOL_CONTENT": "Is the alcohol content (ABV or proof) displayed?",
+    "NET_CONTENTS": "Are the net contents (volume) displayed?",
 }
 
+FOCUSED_PROMPT_TEMPLATE = """You are an expert TTB compliance analyst. A regex-based scan of this alcohol label could not confirm the following specific items. Please check ONLY these items:
 
-def build_prompt(label_text: str, application_details: dict | None = None) -> str:
-    prompt = COMPLIANCE_ANALYSIS_PROMPT % label_text
+%s
 
-    if not application_details:
-        return prompt
+For each item, return a JSON finding with:
+- rule_id: the rule ID shown above
+- rule_name: human-readable name
+- severity: "pass", "warning", "fail", or "info"
+- message: brief explanation of what was found or missing
+- extracted_value: the relevant text from the label (null if not found)
+- regulation_reference: the applicable CFR reference
 
-    details_lines = [
-        f"- {FIELD_LABELS.get(key, key)}: {value}"
-        for key, value in application_details.items()
-        if value
-    ]
-    if details_lines:
-        details_text = "\n".join(details_lines)
-        prompt += APPLICATION_MATCHING_SECTION % details_text
+Also check the label image: Is "GOVERNMENT WARNING:" displayed in BOLD TYPE?
+Include "gov_warning_bold": true or false in your JSON response.
 
-    return prompt
+Also include:
+- beverage_type: the detected beverage type (e.g., "Distilled Spirits", "Wine", "Malt Beverage")
+- brand_name: the detected brand name
+
+Return ONLY valid JSON in this format:
+{
+  "findings": [...],
+  "gov_warning_bold": true or false,
+  "beverage_type": "...",
+  "brand_name": "..."
+}
+
+LABEL TEXT:
+---
+%s
+---
+"""
+
+BOLD_CHECK_PROMPT = """You are an expert TTB compliance analyst. All text-based compliance checks passed for this alcohol label. Check the label image for one remaining item:
+
+Is the "GOVERNMENT WARNING:" header displayed in BOLD TYPE as required by 27 CFR 16.21?
+
+Also include:
+- beverage_type: the detected beverage type (e.g., "Distilled Spirits", "Wine", "Malt Beverage")
+- brand_name: the detected brand name
+
+Return ONLY valid JSON:
+{
+  "gov_warning_bold": true or false,
+  "beverage_type": "...",
+  "brand_name": "..."
+}
+
+LABEL TEXT:
+---
+%s
+---
+"""
+
+
+def build_focused_prompt(label_text: str, failed_rule_ids: list[str]) -> str:
+    checks = []
+    for rule_id in failed_rule_ids:
+        description = FOCUSED_RULE_DESCRIPTIONS.get(rule_id, rule_id)
+        checks.append(f"- {rule_id}: {description}")
+
+    checks_text = "\n".join(checks)
+    return FOCUSED_PROMPT_TEMPLATE % (checks_text, label_text)
+
+
+def build_bold_check_prompt(label_text: str) -> str:
+    return BOLD_CHECK_PROMPT % label_text

@@ -51,7 +51,7 @@ class AnalysisPipeline:
             await db.commit()
 
             report, compliance_duration_ms = await self._compliance.analyze(
-                ocr_result.text, application_details
+                ocr_result.text, application_details, image_path=image_path,
             )
 
             analysis.compliance_findings = json.dumps(
