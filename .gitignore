@@ -43,5 +43,8 @@ frontend/.vite/
 .DS_Store
 Thumbs.db
 
+# Playwright MCP
+.playwright-mcp/
+
 # Docker
 *.log

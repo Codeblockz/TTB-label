@@ -36,4 +36,6 @@ that check.
 Now its slow again, about 6 seconds. I feel like using the LLM just for bold is overkill, not to mention expensive. I will research alternatives.
 Found openCV could be used for bold. I don't think it will work for this case because it needs non bold as a reference and there isnt a good way to anchor those.
 However, I will test it anyways and see if it works.
+Well, it works. However more testing is needed.
 
+I will now set up the demo link.
