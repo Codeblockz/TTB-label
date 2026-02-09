@@ -21,7 +21,6 @@ This is a take-home project for TTB (Alcohol and Tobacco Tax and Trade Bureau). 
 | Extremely simple UI | Sarah: "my mother could figure out" (line 21); Dave: "a button that says 'check this label'" (line 49) | P0 |
 | Batch upload (50+ labels) | Sarah: "handle batch uploads...Janet has been asking for years" (line 23) | P1 |
 | Results history | User's requirement for checks/evaluations on correct labels | P1 |
-| Non-English label detection | Jenny: "Even just flagging 'hey, this might not be in English'" (line 59) | P2 (nice-to-have) |
 | Application details matching (mandatory) | Core workflow: agents submit COLA application details + label image, system verifies match | P0 |
 | Batch upload with CSV matching | Batch: CSV (required) maps filenames to application details for comparison | P1 |
 | Deployed URL | Deliverables section (line 102) | P0 |
@@ -38,7 +37,7 @@ This is a take-home project for TTB (Alcohol and Tobacco Tax and Trade Bureau). 
 | **Frontend** | React + TypeScript + Vite | Type-safe, component-based, fast dev iteration with Vite HMR |
 | **Styling** | Tailwind CSS | Utility-first, consistent clean design, no custom design system needed for MVP |
 | **OCR** | Azure AI Vision 4.0 (Image Analysis API) | Purpose-built for "in-the-wild" images like product labels. Fast synchronous API. Free tier available for testing. |
-| **Compliance Analysis** | LLM via abstract interface | Azure OpenAI (GPT-4o) as primary, Anthropic Claude as alternate. Interface pattern allows swapping providers. |
+| **Compliance Analysis** | LLM via abstract interface | Azure OpenAI (GPT-4o). Interface pattern allows swapping providers. |
 | **Database** | SQLite + SQLAlchemy async | Zero infrastructure for MVP. Same ORM models migrate to PostgreSQL by changing one connection string. |
 | **Deployment** | Azure Container Apps (Docker) | Docker-based, supports the testable URL deliverable, aligns with Azure services already in use |
 | **Service Abstraction** | Python Protocol pattern | OCR and LLM providers are behind interfaces so they can be swapped without changing business logic |
@@ -137,7 +136,6 @@ TTB_label/
 │   │   │   ├── llm/
 │   │   │   │   ├── base.py             # LLMServiceProtocol
 │   │   │   │   ├── azure_openai.py     # Azure OpenAI implementation
-│   │   │   │   ├── anthropic.py        # Claude implementation (alternate)
 │   │   │   │   └── mock.py             # Mock for testing
 │   │   │   ├── compliance/
 │   │   │   │   ├── engine.py           # Hybrid regex + LLM compliance checker
@@ -311,7 +309,7 @@ Single-page state machine:
 
 ### Phase 3: Real AI Integration
 1. Implement AzureVisionOCRService
-2. Implement AzureOpenAIService (or AnthropicLLMService)
+2. Implement AzureOpenAIService
 3. Write and tune LLM compliance prompt
 4. Test with real/generated label images, iterate on accuracy
 5. **Verify:** Real labels analyzed in < 5 seconds
