@@ -49,3 +49,6 @@ Thumbs.db
 
 # Docker
 *.log
+
+# Dev tools
+tools/label-generator/
