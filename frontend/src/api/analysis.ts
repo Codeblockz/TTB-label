@@ -44,6 +44,15 @@ export async function getHistory(
   return response.data;
 }
 
+export async function deleteAnalysis(id: string): Promise<void> {
+  await apiClient.delete(`/analysis/${id}`);
+}
+
+export async function bulkDeleteAnalyses(ids: string[]): Promise<{ deleted: number }> {
+  const response = await apiClient.post<{ deleted: number }>("/analysis/bulk-delete", { ids });
+  return response.data;
+}
+
 export async function uploadBatch(
   files: File[],
   csvFile: File,

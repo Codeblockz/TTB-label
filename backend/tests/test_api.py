@@ -104,6 +104,78 @@ async def test_get_analysis_after_upload(client: AsyncClient):
 
 
 @pytest.mark.asyncio
+async def test_delete_analysis(client: AsyncClient):
+    upload_resp = await client.post(
+        "/api/analysis/single",
+        files={"file": ("label.png", io.BytesIO(PNG_BYTES), "image/png")},
+        data={"brand_name": "Delete Me"},
+    )
+    analysis_id = upload_resp.json()["analysis_id"]
+
+    delete_resp = await client.delete(f"/api/analysis/{analysis_id}")
+    assert delete_resp.status_code == 204
+
+    get_resp = await client.get(f"/api/analysis/{analysis_id}")
+    assert get_resp.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_delete_analysis_not_found(client: AsyncClient):
+    resp = await client.delete("/api/analysis/nonexistent-id")
+    assert resp.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_bulk_delete_analyses(client: AsyncClient):
+    # Upload 3 analyses
+    ids = []
+    for i in range(3):
+        resp = await client.post(
+            "/api/analysis/single",
+            files={"file": (f"label{i}.png", io.BytesIO(PNG_BYTES), "image/png")},
+            data={"brand_name": f"Brand {i}"},
+        )
+        ids.append(resp.json()["analysis_id"])
+
+    # Bulk delete the first 2
+    delete_resp = await client.post(
+        "/api/analysis/bulk-delete",
+        json={"ids": ids[:2]},
+    )
+    assert delete_resp.status_code == 200
+    assert delete_resp.json()["deleted"] == 2
+
+    # Verify deleted ones return 404
+    for deleted_id in ids[:2]:
+        assert (await client.get(f"/api/analysis/{deleted_id}")).status_code == 404
+
+    # Verify the third still exists
+    assert (await client.get(f"/api/analysis/{ids[2]}")).status_code == 200
+
+
+@pytest.mark.asyncio
+async def test_bulk_delete_with_missing_ids(client: AsyncClient):
+    # Upload 1 real analysis
+    resp = await client.post(
+        "/api/analysis/single",
+        files={"file": ("label.png", io.BytesIO(PNG_BYTES), "image/png")},
+        data={"brand_name": "Real Brand"},
+    )
+    real_id = resp.json()["analysis_id"]
+
+    # Bulk delete with mix of real + nonexistent IDs
+    delete_resp = await client.post(
+        "/api/analysis/bulk-delete",
+        json={"ids": [real_id, "nonexistent-1", "nonexistent-2"]},
+    )
+    assert delete_resp.status_code == 200
+    assert delete_resp.json()["deleted"] == 1
+
+    # Verify the real one is gone
+    assert (await client.get(f"/api/analysis/{real_id}")).status_code == 404
+
+
+@pytest.mark.asyncio
 async def test_batch_upload_with_csv(client: AsyncClient):
     csv_content = (
         "filename,brand_name,class_type,alcohol_content\n"

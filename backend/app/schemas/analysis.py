@@ -31,3 +31,11 @@ class AnalysisListResponse(BaseModel):
     total: int
     page: int
     page_size: int
+
+
+class BulkDeleteRequest(BaseModel):
+    ids: list[str]
+
+
+class BulkDeleteResponse(BaseModel):
+    deleted: int

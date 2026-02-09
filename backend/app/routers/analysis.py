@@ -1,7 +1,8 @@
 import json
 import logging
+import os
 
-from fastapi import APIRouter, BackgroundTasks, Depends, Form, HTTPException, Query, UploadFile
+from fastapi import APIRouter, BackgroundTasks, Depends, Form, HTTPException, Query, Response, UploadFile
 from fastapi.responses import FileResponse
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -11,7 +12,7 @@ from app.dependencies import get_db, get_pipeline
 from app.models.analysis import AnalysisResult, AnalysisStatus
 from app.models.label import Label
 from app.routers import ALLOWED_MIME_TYPES
-from app.schemas.analysis import AnalysisListResponse, AnalysisResponse
+from app.schemas.analysis import AnalysisListResponse, AnalysisResponse, BulkDeleteRequest, BulkDeleteResponse
 from app.schemas.compliance import ApplicationDetails, ComplianceFinding
 from app.services.pipeline import AnalysisPipeline
 from app.services.storage import save_upload
@@ -159,6 +160,60 @@ async def get_analysis(
     if not analysis:
         raise HTTPException(status_code=404, detail="Analysis not found")
     return _to_response(analysis)
+
+
+async def _delete_one(analysis: AnalysisResult, db: AsyncSession) -> None:
+    """Delete an analysis and its associated label + image file."""
+    label = analysis.label
+    if label:
+        try:
+            os.remove(label.stored_filepath)
+        except FileNotFoundError:
+            pass
+
+    await db.delete(analysis)
+    if label:
+        await db.delete(label)
+
+
+@router.delete("/{analysis_id}")
+async def delete_analysis(
+    analysis_id: str,
+    db: AsyncSession = Depends(get_db),
+):
+    result = await db.execute(
+        select(AnalysisResult)
+        .options(selectinload(AnalysisResult.label))
+        .where(AnalysisResult.id == analysis_id)
+    )
+    analysis = result.scalar_one_or_none()
+    if not analysis:
+        raise HTTPException(status_code=404, detail="Analysis not found")
+
+    await _delete_one(analysis, db)
+    await db.commit()
+
+    return Response(status_code=204)
+
+
+@router.post("/bulk-delete", response_model=BulkDeleteResponse)
+async def bulk_delete_analyses(
+    body: BulkDeleteRequest,
+    db: AsyncSession = Depends(get_db),
+):
+    deleted = 0
+    for analysis_id in body.ids:
+        result = await db.execute(
+            select(AnalysisResult)
+            .options(selectinload(AnalysisResult.label))
+            .where(AnalysisResult.id == analysis_id)
+        )
+        analysis = result.scalar_one_or_none()
+        if analysis:
+            await _delete_one(analysis, db)
+            deleted += 1
+    await db.commit()
+    return BulkDeleteResponse(deleted=deleted)
 
 
 @router.get("/", response_model=AnalysisListResponse)
