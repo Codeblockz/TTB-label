@@ -72,4 +72,35 @@ See `.env.example`. Key settings:
 - **Backend:** Python 3.12, FastAPI, SQLAlchemy (async), SQLite
 - **Frontend:** React, TypeScript, Vite, Tailwind CSS
 - **AI Services:** Azure Vision (OCR), Azure OpenAI (compliance analysis)
-- **Deployment:** Docker Compose
+- **Deployment:** Docker Compose (local), Azure Container Apps (production)
+
+## Azure Deployment
+
+### Prerequisites
+
+- [Azure CLI](https://learn.microsoft.com/en-us/cli/azure/install-azure-cli) installed
+- Azure subscription with Computer Vision and OpenAI resources configured
+- `.env` file with your Azure keys (see `.env.example`)
+
+### Deploy
+
+```bash
+az login
+./scripts/deploy.sh
+```
+
+This creates a `labelcheck-containers` resource group with:
+- Azure Container Registry (ACR)
+- Container Apps Environment
+- Backend container (internal ingress, FastAPI)
+- Frontend container (external ingress, Nginx + React)
+
+The deploy script outputs your public URL when complete.
+
+### Tear Down
+
+```bash
+./scripts/teardown.sh
+```
+
+Deletes the entire `labelcheck-containers` resource group. Your AI services in `ttb-label-check` are not affected.
