@@ -43,3 +43,4 @@ Demo link works and have a script for easy set up.
 
 Feb 9, Used the agents to create a stakeholder brief.
 Brief made. It was Made for stakeholders and not a technical review. I think I could push this now to the web but just to be sure I want to make more data sets and test it a little more since I have until Friday. 
+I added more test images and I made it so that in the front end you can select already made images. 
