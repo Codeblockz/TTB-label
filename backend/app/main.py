@@ -7,7 +7,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.config import settings
 from app.db.init_db import create_all_tables
 from app.db.session import engine
-from app.routers import analysis, batch, health
+from app.routers import analysis, batch, health, samples
 
 logging.basicConfig(level=settings.log_level.upper())
 logger = logging.getLogger(__name__)
@@ -42,3 +42,4 @@ app.add_middleware(
 app.include_router(health.router)
 app.include_router(analysis.router)
 app.include_router(batch.router)
+app.include_router(samples.router)

@@ -66,3 +66,20 @@ export interface BatchDetailResponse {
   batch: BatchResponse;
   analyses: AnalysisResponse[];
 }
+
+export interface SampleLabel {
+  filename: string;
+  brand_name: string;
+  class_type: string;
+  alcohol_content: string;
+  net_contents: string;
+  bottler_name_address: string;
+  country_of_origin: string;
+  description: string;
+  expected_verdict: string;
+  image_url: string;
+}
+
+export interface SampleLabelsResponse {
+  samples: SampleLabel[];
+}
