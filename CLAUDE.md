@@ -2,7 +2,7 @@
 
 ## Project Overview
 
-AI-powered alcohol label verification tool for TTB compliance agents. See `prd.md` for full requirements and architecture. See `takehome.md` for original stakeholder interviews and deliverables.
+AI-powered alcohol label verification tool for TTB compliance agents. See `docs/prd.md` for full requirements and architecture. See `docs/takehome.md` for original stakeholder interviews and deliverables.
 
 ## Tech Stack
 
@@ -84,7 +84,7 @@ Tests must prove the system actually works, not just prove that mocks return wha
 - **Use real test images.** Tests that verify OCR or label analysis must use actual label images stored in `backend/tests/fixtures/`. If a test needs a label image and none exists, **stop and ask the user to provide one** rather than generating fake data or skipping the test.
 - **Use a real test database.** Tests should use a real SQLite database (in-memory or temp file), not a mocked session. Verify actual rows are written and read back.
 - **Use the FastAPI TestClient** for API tests. Send real HTTP requests, verify real response bodies, check real status codes.
-- **Compliance rule tests must use realistic label text** — copy-paste from real labels or the takehome.md examples, not made-up strings that happen to pass.
+- **Compliance rule tests must use realistic label text** — copy-paste from real labels or the docs/takehome.md examples, not made-up strings that happen to pass.
 
 ### What to do when test materials are missing
 If you need a test fixture (label image, sample text, etc.) that doesn't exist yet:
@@ -131,7 +131,7 @@ Every piece of work must be validated before considering it done:
 
 ## File Organization
 
-Follow the project structure in `prd.md` exactly. When in doubt:
+Follow the project structure in `docs/prd.md` exactly. When in doubt:
 - Models go in `backend/app/models/`
 - Schemas go in `backend/app/schemas/`
 - Business logic goes in `backend/app/services/`
