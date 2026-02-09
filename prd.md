@@ -195,6 +195,8 @@ TTB_label/
 | `GET` | `/api/health` | Health check |
 | `POST` | `/api/analysis/single` | Upload + analyze one label with optional application details (returns analysis_id, client polls) |
 | `GET` | `/api/analysis/{id}` | Get analysis result (poll until status=completed) |
+| `DELETE` | `/api/analysis/{id}` | Delete single analysis (dev convenience) |
+| `POST` | `/api/analysis/bulk-delete` | Bulk delete analyses by IDs (dev convenience) |
 | `GET` | `/api/analysis/` | History with pagination + filters |
 | `POST` | `/api/batch/upload` | Upload multiple labels with optional CSV of application details (returns batch_id) |
 | `GET` | `/api/batch/{id}` | Get batch details + all results |
@@ -274,6 +276,7 @@ Single-page state machine:
 - Paginated table of past analyses
 - Filter by verdict, beverage type
 - Click row → detail view
+- Multi-select checkboxes + bulk delete (developer convenience for clearing test data, not a compliance workflow feature)
 
 ### Page 4: Result Detail Page (`/results/:id`)
 - Full findings list, extracted text panel, label image thumbnail
