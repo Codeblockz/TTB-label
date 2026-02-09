@@ -68,6 +68,8 @@ Results show "Expected: X. Found: approximate match (4/5 words)" so the agent ca
 
 Dave's bar was simple: "don't make my life harder." Sarah's was "no hunting for buttons." The app is designed around that:
 
+**Sample labels included:** The upload page offers pre-loaded demo images across beverage types (spirits, wine, beer) so reviewers can test the full pipeline in one click — no need to source label photos first.
+
 **Single upload:** Drag-and-drop (or click to browse) → optional application details form → "Upload Analysis" → full-screen processing indicator with stage-by-stage status ("Extracting text...", "Checking compliance...") → results page with pass/fail/warning verdict, individual finding cards with regulation citations, the raw OCR text, and the original label image.
 
 **Batch upload (Sarah's request):** Select multiple images + upload a CSV of application details → "Analyze All" → progress bar showing "12/50 completed" with live updates → clickable results list with per-label verdicts → click any label to see full findings.
