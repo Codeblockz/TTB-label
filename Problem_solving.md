@@ -39,3 +39,6 @@ However, I will test it anyways and see if it works.
 Well, it works. However more testing is needed.
 
 I will now set up the demo link.
+Demo link works and have a script for easy set up.
+
+Feb 9, Used the agents to create a stakeholder brief.
