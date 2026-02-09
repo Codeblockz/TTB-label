@@ -18,7 +18,7 @@ Each label receives a verdict: **Pass**, **Fail**, or **Warnings** with detailed
 cp .env.example .env
 # Edit .env with your Azure keys
 
-docker-compose up --build
+docker compose up --build
 ```
 
 Open http://localhost:3000
@@ -28,10 +28,10 @@ Open http://localhost:3000
 ### Backend
 
 ```bash
-cd backend
 python -m venv .venv
 source .venv/bin/activate
-pip install -r requirements.txt
+pip install -r backend/requirements.txt
+cd backend
 uvicorn app.main:app --reload
 ```
 
@@ -50,8 +50,8 @@ Dev server at http://localhost:5173 (proxies /api to backend)
 ## Testing
 
 ```bash
-cd backend
 source .venv/bin/activate
+cd backend
 pytest
 ```
 
@@ -66,6 +66,10 @@ See `.env.example`. Key settings:
 | `AZURE_OPENAI_ENDPOINT` | Azure OpenAI endpoint |
 | `AZURE_OPENAI_KEY` | Azure OpenAI API key |
 | `AZURE_OPENAI_DEPLOYMENT` | Model deployment name (default: gpt-4o-mini) |
+| `AZURE_OPENAI_API_VERSION` | Azure OpenAI API version (default: 2024-12-01-preview) |
+| `DATABASE_URL` | SQLAlchemy database URL (default: sqlite+aiosqlite:///./labelcheck.db) |
+| `UPLOAD_DIR` | Directory for uploaded label images (default: ./uploads) |
+| `LOG_LEVEL` | Logging level (default: info) |
 
 ## Architecture
 
