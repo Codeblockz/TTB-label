@@ -6,6 +6,7 @@ interface BatchProgress {
   completed: number;
   failed: number;
   isComplete: boolean;
+  error: string | null;
 }
 
 export default function useBatchProgress(batchId: string | null): BatchProgress {
@@ -15,6 +16,7 @@ export default function useBatchProgress(batchId: string | null): BatchProgress 
     completed: 0,
     failed: 0,
     isComplete: false,
+    error: null,
   });
 
   useEffect(() => {
@@ -31,7 +33,7 @@ export default function useBatchProgress(batchId: string | null): BatchProgress 
       };
       const isComplete =
         data.status === "completed" || data.status === "failed";
-      setProgress({ ...data, isComplete });
+      setProgress({ ...data, isComplete, error: null });
       if (isComplete) {
         source.close();
       }
@@ -39,6 +41,7 @@ export default function useBatchProgress(batchId: string | null): BatchProgress 
 
     source.onerror = () => {
       source.close();
+      setProgress((prev) => ({ ...prev, isComplete: true, error: "Connection lost" }));
     };
 
     return () => {
