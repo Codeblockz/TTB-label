@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef } from "react";
+import { useState, useCallback, useRef, useEffect } from "react";
 import { uploadBatch, getBatch } from "../api/analysis";
 import useBatchProgress from "../hooks/useBatchProgress";
 import BatchProgress from "../components/batch/BatchProgress";
@@ -45,9 +45,11 @@ export default function BatchUploadPage() {
     }
   }, [batchId]);
 
-  if (progress.isComplete && results.length === 0 && batchId) {
-    fetchResults();
-  }
+  useEffect(() => {
+    if (progress.isComplete && results.length === 0 && batchId) {
+      fetchResults();
+    }
+  }, [progress.isComplete, batchId, results.length, fetchResults]);
 
   function handleReset() {
     setImageFiles([]);

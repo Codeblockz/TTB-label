@@ -20,7 +20,7 @@ export default function UploadPage() {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [appDetails, setAppDetails] = useState<ApplicationDetails>({});
   const [isFetchingSample, setIsFetchingSample] = useState(false);
-  const { upload, analysis, isUploading, isProcessing, error } = useAnalysis();
+  const { upload, analysis, isUploading, isProcessing, error, reset } = useAnalysis();
 
   const isDone = analysis?.status === "completed";
   const canSubmit = !!selectedFile;
@@ -34,7 +34,7 @@ export default function UploadPage() {
   function handleReset() {
     setSelectedFile(null);
     setAppDetails({});
-    window.location.reload();
+    reset();
   }
 
   async function handleSampleSelected(sample: SampleLabel) {

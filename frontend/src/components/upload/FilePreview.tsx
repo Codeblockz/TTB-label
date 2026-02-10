@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useState, useEffect } from "react";
 
 interface FilePreviewProps {
   file: File;
@@ -11,7 +11,13 @@ function formatSize(bytes: number): string {
 }
 
 export default function FilePreview({ file }: FilePreviewProps) {
-  const previewUrl = useMemo(() => URL.createObjectURL(file), [file]);
+  const [previewUrl, setPreviewUrl] = useState("");
+
+  useEffect(() => {
+    const url = URL.createObjectURL(file);
+    setPreviewUrl(url);
+    return () => URL.revokeObjectURL(url);
+  }, [file]);
 
   return (
     <div className="flex items-center gap-4 rounded-lg border border-gray-200 bg-white p-4">
