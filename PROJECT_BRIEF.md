@@ -45,7 +45,7 @@ Every check runs against the raw OCR text. When a check fails, it goes to the LL
 
 **Brand Name:** Brand names are too varied to pattern-match — regex can't distinguish "OLD TOM DISTILLERY" from any other text. Instead, uses a text-length proxy: if the OCR extracted >= 20 characters, there's enough content to plausibly contain a brand → PASS. If the text is shorter than that, the label is effectively blank or the OCR failed → FAIL, and the LLM evaluates. This is intentionally a weak gate — its job is to detect unreadable labels, not identify brands.
 
-**Class/Type Designation:** Searches for any of ~50 known beverage type keywords (vodka, bourbon, cabernet, IPA, hard seltzer, mead, etc.) with word-boundary matching so "porter" doesn't match inside "importer". If no recognized type → FAIL, LLM tries to identify it from context.
+**Class/Type Designation:** Searches for any of ~50 known beverage type keywords (vodka, bourbon, cabernet, IPA, hard seltzer, mead, etc.) with word-boundary matching so "porter" doesn't match inside "importer". If no recognized type → FAIL. This rule is regex-authoritative — the regex result is final with no LLM fallback, since the keyword list is comprehensive enough that a miss indicates a genuinely missing designation.
 
 **Name and Address:** Looks for the standard label pattern: a production verb ("Distilled", "Bottled", "Imported", "Produced", etc.) followed by "by" or "for", followed by a name and city/state. Catches "Bottled by Smith Distillery, Louisville, KY" and similar. If no match → FAIL.
 
@@ -93,10 +93,10 @@ The entire interface is 4 pages. No modals, no nested panels, no advanced option
 ## Assumptions
 
 - **Application details are manually entered.** In production, these would come from the COLA database. For the prototype, agents fill out a form (or upload a CSV for batch).
-- **SQLite for the prototype.** The SQLAlchemy async ORM means switching to PostgreSQL requires only a connection string change.
+- **SQLite for the prototype.** The SQLAlchemy async ORM is database-agnostic, so switching to PostgreSQL requires changing the connection string and swapping the async driver package (`aiosqlite` → `asyncpg`).
 - **Azure Vision over open-source OCR.** Product labels with artistic backgrounds, curved text, and low-contrast designs need a more capable OCR engine than Tesseract.
-- **Batch processing is sequential.** Parallelism is a production optimization — the prototype processes one label at a time to stay simple and debuggable.
-- **The 2/4 phrase threshold for government warning completeness** was chosen to tolerate OCR errors while still confirming both clauses are present. Too low (1/4) would pass warnings with only a fragment; too high (4/4) would fail every label where OCR garbles a single phrase.
+- **Batch processing is concurrent (up to 5 labels).** The batch endpoint uses `asyncio.gather()` with a semaphore to process up to 5 labels in parallel. Single-label uploads process one at a time.
+- **The 4/4 phrase threshold for government warning completeness** requires all 4 key phrases per clause to pass the regex check. Any phrase missed by OCR triggers an LLM fallback for a second opinion. This is strict by design — the regex gate only passes labels where OCR captured the full warning text, and defers to the LLM for anything less.
 - **The 70% word-match threshold for application matching** balances OCR tolerance against false positives. It requires the majority of expected words to appear while forgiving one or two misreads.
 - **The brand name check is a text-length proxy (>= 20 chars)**, not real brand detection. It catches blank/unreadable labels; the LLM handles actual brand identification when it's triggered.
 
@@ -106,7 +106,7 @@ The entire interface is 4 pages. No modals, no nested panels, no advanced option
 - **COLA system integration** (Marcus's constraint) — the prototype is a standalone "second screen" tool, as specified.
 - **FedRAMP / security hardening** — Marcus said to skip it for the prototype.
 - **Subjective compliance checks** (marketing claims, misleading imagery) and **case-sensitivity judgment** (Dave's example: "STONE'S THROW" vs "Stone's Throw" — technically a mismatch but obviously the same brand) — these require human judgment. The tool checks objective, mechanical items and leaves the nuanced calls to the agent.
-- **Parallel batch processing** — labels process sequentially. Parallelism would improve throughput for Sarah's 200–300 label peak-season batches but adds complexity.
+- **Higher batch concurrency** — the prototype caps concurrent processing at 5 labels via semaphore. A production version could tune this limit or distribute across workers for Sarah's 200–300 label peak-season batches.
 
 ## Known Limitations
 
