@@ -107,7 +107,7 @@ def check_gov_warning_format(text: str) -> ComplianceFinding:
     )
 
 
-CLAUSE_MATCH_THRESHOLD = 2
+CLAUSE_MATCH_THRESHOLD = 4
 
 
 def check_gov_warning_complete(text: str) -> ComplianceFinding:
@@ -135,7 +135,7 @@ def check_gov_warning_complete(text: str) -> ComplianceFinding:
     return ComplianceFinding(
         rule_id="GOV_WARNING_COMPLETE",
         rule_name="Government Warning Completeness",
-        severity=Severity.WARNING,
+        severity=Severity.FAIL,
         message=f"Government warning incomplete (pregnancy: {c1}/4, impairment: {c2}/4)",
         regulation_reference="27 CFR 16.21",
     )

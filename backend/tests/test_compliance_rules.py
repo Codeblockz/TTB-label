@@ -87,14 +87,14 @@ class TestGovWarningComplete:
         assert "pregnancy:" in result.message
         assert "impairment:" in result.message
 
-    def test_clause_1_only_warns(self):
+    def test_clause_1_only_fails(self):
         result = check_gov_warning_complete(CLAUSE_1_ONLY)
-        assert result.severity == Severity.WARNING
+        assert result.severity == Severity.FAIL
         assert "incomplete" in result.message.lower()
 
-    def test_clause_2_only_warns(self):
+    def test_clause_2_only_fails(self):
         result = check_gov_warning_complete(CLAUSE_2_ONLY)
-        assert result.severity == Severity.WARNING
+        assert result.severity == Severity.FAIL
 
     def test_no_header_info(self):
         result = check_gov_warning_complete(NO_GOV_WARNING)
@@ -104,11 +104,11 @@ class TestGovWarningComplete:
         result = check_gov_warning_complete(LOWERCASE_HEADER_WARNING)
         assert result.severity == Severity.PASS
 
-    def test_partial_clause_warns(self):
+    def test_partial_clause_fails(self):
         text = "GOVERNMENT WARNING: women should not drink during pregnancy"
         result = check_gov_warning_complete(text)
         # Only 2 clause-1 phrases, 0 clause-2 phrases
-        assert result.severity == Severity.WARNING
+        assert result.severity == Severity.FAIL
 
 
 # --- Alcohol Content Tests ---
@@ -517,7 +517,7 @@ class TestComplianceEngine:
         assert bold_finding.severity == Severity.PASS
 
     @pytest.mark.asyncio
-    async def test_bold_false_appends_warning_finding(self):
+    async def test_bold_false_appends_info_finding(self):
         mock_llm = AsyncMock()
 
         engine = ComplianceEngine(mock_llm)
@@ -529,8 +529,8 @@ class TestComplianceEngine:
             (f for f in report.findings if f.rule_id == "GOV_WARNING_BOLD"), None,
         )
         assert bold_finding is not None
-        assert bold_finding.severity == Severity.WARNING
-        assert report.overall_verdict == "warnings"
+        assert bold_finding.severity == Severity.INFO
+        assert report.overall_verdict == "pass"
 
     @pytest.mark.asyncio
     async def test_no_bold_finding_when_no_bold_result(self):
@@ -545,22 +545,11 @@ class TestComplianceEngine:
         assert bold_finding is None
 
     @pytest.mark.asyncio
-    async def test_calls_llm_on_regex_failure(self):
+    async def test_class_type_failure_not_sent_to_llm(self):
+        """CLASS_TYPE is regex-authoritative — LLM should not override it."""
         mock_llm = AsyncMock()
-        mock_llm.analyze_compliance.return_value = _make_llm_response(
-            findings=[{
-                "rule_id": "CLASS_TYPE",
-                "rule_name": "Class/Type Designation",
-                "severity": "pass",
-                "message": "LLM found: Artisanal Spirit",
-                "extracted_value": "Artisanal Spirit",
-                "regulation_reference": "27 CFR 5.63(a)(2)",
-            }],
-            beverage_type="Distilled Spirits",
-            brand_name="OLD TOM DISTILLERY",
-        )
 
-        # Missing a recognizable class/type for regex
+        # Label with invalid class/type but everything else passing
         text = """GOVERNMENT WARNING: (1) ACCORDING TO THE SURGEON GENERAL, WOMEN SHOULD NOT DRINK ALCOHOLIC BEVERAGES DURING PREGNANCY BECAUSE OF THE RISK OF BIRTH DEFECTS. (2) CONSUMPTION OF ALCOHOLIC BEVERAGES IMPAIRS YOUR ABILITY TO DRIVE A CAR OR OPERATE MACHINERY, AND MAY CAUSE HEALTH PROBLEMS.
 
 OLD TOM DISTILLERY
@@ -571,19 +560,56 @@ Distilled by Old Tom Distillery, Louisville, KY
 Product of USA"""
 
         engine = ComplianceEngine(mock_llm)
-        report, _ = await engine.analyze(text, bold_result=True)
+        report, _ = await engine.analyze(text, bold_result=False)
 
-        # LLM should have been called for the failed CLASS_TYPE rule
-        mock_llm.analyze_compliance.assert_called_once()
-        prompt = mock_llm.analyze_compliance.call_args[0][1]
-        assert "CLASS_TYPE" in prompt
+        # LLM should NOT be called — CLASS_TYPE is regex-authoritative
+        mock_llm.analyze_compliance.assert_not_called()
 
-        # The LLM result should replace the failed regex finding
+        # Regex FAIL for CLASS_TYPE should be preserved
         class_type_finding = next(
             f for f in report.findings if f.rule_id == "CLASS_TYPE"
         )
-        assert class_type_finding.severity == Severity.PASS
-        assert "LLM found" in class_type_finding.message
+        assert class_type_finding.severity == Severity.FAIL
+
+        # Bold=False produces INFO, not WARNING — shouldn't affect verdict
+        bold_finding = next(
+            f for f in report.findings if f.rule_id == "GOV_WARNING_BOLD"
+        )
+        assert bold_finding.severity == Severity.INFO
+
+        assert report.overall_verdict == "fail"
+
+    @pytest.mark.asyncio
+    async def test_calls_llm_on_non_authoritative_failure(self):
+        """Non-authoritative regex failures should still be sent to LLM."""
+        mock_llm = AsyncMock()
+        mock_llm.analyze_compliance.return_value = _make_llm_response(
+            findings=[{
+                "rule_id": "NAME_ADDRESS",
+                "rule_name": "Name and Address",
+                "severity": "pass",
+                "message": "LLM found producer info",
+                "regulation_reference": "27 CFR 5.36",
+            }],
+        )
+
+        # Missing name/address for regex (no "Distilled by" etc.)
+        text = """GOVERNMENT WARNING: (1) ACCORDING TO THE SURGEON GENERAL, WOMEN SHOULD NOT DRINK ALCOHOLIC BEVERAGES DURING PREGNANCY BECAUSE OF THE RISK OF BIRTH DEFECTS. (2) CONSUMPTION OF ALCOHOLIC BEVERAGES IMPAIRS YOUR ABILITY TO DRIVE A CAR OR OPERATE MACHINERY, AND MAY CAUSE HEALTH PROBLEMS.
+
+OLD TOM DISTILLERY
+Kentucky Straight Bourbon Whiskey
+45% Alc./Vol. (90 Proof)
+750 mL
+Old Tom Distillery, Louisville, KY
+Product of USA"""
+
+        engine = ComplianceEngine(mock_llm)
+        report, _ = await engine.analyze(text, bold_result=True)
+
+        # LLM should have been called for the failed NAME_ADDRESS rule
+        mock_llm.analyze_compliance.assert_called_once()
+        prompt = mock_llm.analyze_compliance.call_args[0][1]
+        assert "NAME_ADDRESS" in prompt
 
     @pytest.mark.asyncio
     async def test_llm_gets_gov_warning_warnings(self):
@@ -613,14 +639,13 @@ Product of USA"""
         mock_llm = AsyncMock()
         mock_llm.analyze_compliance.return_value = _make_llm_response()
 
-        # Missing class type triggers LLM call
+        # Missing name/address triggers LLM call (NAME_ADDRESS is not regex-authoritative)
         text = """GOVERNMENT WARNING: (1) ACCORDING TO THE SURGEON GENERAL, WOMEN SHOULD NOT DRINK ALCOHOLIC BEVERAGES DURING PREGNANCY BECAUSE OF THE RISK OF BIRTH DEFECTS. (2) CONSUMPTION OF ALCOHOLIC BEVERAGES IMPAIRS YOUR ABILITY TO DRIVE A CAR OR OPERATE MACHINERY, AND MAY CAUSE HEALTH PROBLEMS.
 
 OLD TOM DISTILLERY
-Artisanal Spirit 2024
+Kentucky Straight Bourbon Whiskey
 45% Alc./Vol. (90 Proof)
 750 mL
-Distilled by Old Tom Distillery, Louisville, KY
 Product of USA"""
 
         engine = ComplianceEngine(mock_llm)
@@ -646,11 +671,11 @@ Product of USA"""
         assert "BRAND_MATCH" in rule_ids
 
     @pytest.mark.asyncio
-    async def test_focused_prompt_only_includes_failed_rules(self):
+    async def test_focused_prompt_only_includes_non_authoritative_failures(self):
         mock_llm = AsyncMock()
         mock_llm.analyze_compliance.return_value = _make_llm_response()
 
-        # Missing class type AND name/address
+        # Missing class type AND name/address — but CLASS_TYPE is regex-authoritative
         text = """GOVERNMENT WARNING: (1) ACCORDING TO THE SURGEON GENERAL, WOMEN SHOULD NOT DRINK ALCOHOLIC BEVERAGES DURING PREGNANCY BECAUSE OF THE RISK OF BIRTH DEFECTS. (2) CONSUMPTION OF ALCOHOLIC BEVERAGES IMPAIRS YOUR ABILITY TO DRIVE A CAR OR OPERATE MACHINERY, AND MAY CAUSE HEALTH PROBLEMS.
 
 OLD TOM DISTILLERY
@@ -662,7 +687,8 @@ Artisanal Spirit 2024
         await engine.analyze(text, bold_result=True)
 
         prompt = mock_llm.analyze_compliance.call_args[0][1]
-        assert "CLASS_TYPE" in prompt
+        # CLASS_TYPE is regex-authoritative, should NOT be sent to LLM
+        assert "CLASS_TYPE" not in prompt
         assert "NAME_ADDRESS" in prompt
         # Rules that passed should NOT be in the focused prompt
         assert "GOV_WARNING_PRESENCE" not in prompt

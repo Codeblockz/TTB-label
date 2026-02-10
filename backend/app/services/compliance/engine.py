@@ -12,6 +12,11 @@ from app.services.llm.base import LLMServiceProtocol
 
 GOV_WARNING_RULE_IDS = {"GOV_WARNING_FORMAT", "GOV_WARNING_COMPLETE"}
 
+# Rules where regex is the definitive authority — LLM cannot override.
+# CLASS_TYPE has a comprehensive list of TTB-recognized class/types;
+# the LLM has no additional authority here.
+REGEX_AUTHORITATIVE_RULES = {"CLASS_TYPE"}
+
 logger = logging.getLogger(__name__)
 
 
@@ -92,7 +97,10 @@ class ComplianceEngine:
             f.rule_id for f in regex_findings
             if f.severity == Severity.WARNING and f.rule_id in GOV_WARNING_RULE_IDS
         ]
-        rules_for_llm = failed_rule_ids + warning_gov_ids
+        rules_for_llm = [
+            r for r in failed_rule_ids + warning_gov_ids
+            if r not in REGEX_AUTHORITATIVE_RULES
+        ]
 
         # Step 4: Call LLM only if regex rules need verification (text-only, no image)
         llm: _LLMResult | None = None
@@ -130,7 +138,7 @@ class ComplianceEngine:
             regex_findings.append(ComplianceFinding(
                 rule_id="GOV_WARNING_BOLD",
                 rule_name="Government Warning Bold Format",
-                severity=Severity.PASS if effective_bold else Severity.WARNING,
+                severity=Severity.PASS if effective_bold else Severity.INFO,
                 message=(
                     "'GOVERNMENT WARNING:' appears in required bold type"
                     if effective_bold else
