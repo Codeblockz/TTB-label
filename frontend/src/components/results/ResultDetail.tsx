@@ -73,7 +73,7 @@ export default function ResultDetail({ analysis }: ResultDetailProps) {
           <img
             src={analysis.image_url}
             alt="Label"
-            className="max-h-64 rounded-lg"
+            className="w-full max-w-xs md:max-w-sm lg:max-w-md rounded-lg"
           />
         </div>
       )}
