@@ -53,4 +53,5 @@ I will use claude code to perform user testing. However, I expect the results to
 
 Claude Code made over 50 user test cases. As predicted it said everything is OK. 
 I was feeling kinda iffy on the code base, so as precation I made it do a full scale code review. 
-LOL well that saved me some pain. For 
+LOL well that saved me some pain. 
+We now have this code review document with a lot of errors. Well, not errors, bugs, security concerns. Now we're going to use claude code and a good use case for the multi-agents. 
