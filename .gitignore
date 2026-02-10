@@ -52,3 +52,7 @@ Thumbs.db
 
 # Dev tools
 tools/label-generator/
+
+# Synthetic test images (generated at runtime by experiments)
+backend/tests/fixtures/synth_*.png
+backend/tests/fixtures/_test_bold_tmp.png

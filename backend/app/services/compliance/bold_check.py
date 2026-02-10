@@ -11,7 +11,6 @@ logger = logging.getLogger(__name__)
 MIN_BODY_LINE_LENGTH = 10
 BOLD_RATIO_THRESHOLD = 1.25
 CROP_PADDING_PX = 5
-MIN_SKELETON_SAMPLES = 20
 
 
 def _crop_line_region(
@@ -37,32 +36,26 @@ def _crop_line_region(
     return image[y_min:y_max, x_min:x_max]
 
 
-def _median_stroke_width(crop: np.ndarray) -> float | None:
-    """Compute median stroke half-width via skeletonize + distance transform.
+def _median_run_length(crop: np.ndarray) -> float:
+    """Compute median horizontal run length of foreground pixels.
 
-    Median is more robust than mean for small text where distance values
-    are quantized (1.0, 1.4, 2.0, etc.) — it captures the typical thick
-    stroke better than mean which gets pulled toward thin serifs/edges.
+    For each row, measures lengths of consecutive foreground pixel runs.
+    Bold text produces longer runs due to thicker strokes. Returns 0.0
+    if no foreground pixels exist.
     """
     gray = cv2.cvtColor(crop, cv2.COLOR_BGR2GRAY) if len(crop.shape) == 3 else crop
-
-    # Otsu threshold — invert so text pixels are white (foreground)
     _, binary = cv2.threshold(gray, 0, 255, cv2.THRESH_BINARY_INV + cv2.THRESH_OTSU)
 
-    # Skeletonize to single-pixel-wide centerlines
-    skeleton = cv2.ximgproc.thinning(binary)
+    padded = np.pad(binary // 255, ((0, 0), (1, 1)), constant_values=0).astype(np.int16)
+    diffs = np.diff(padded, axis=1)
+    starts = np.argwhere(diffs > 0)
+    ends = np.argwhere(diffs < 0)
 
-    # Distance transform on the binary text mask
-    dist = cv2.distanceTransform(binary, cv2.DIST_L2, 5)
+    if len(starts) == 0 or len(ends) == 0:
+        return 0.0
 
-    # Sample distance values at skeleton pixels (= half stroke width)
-    skeleton_mask = skeleton > 0
-    samples = dist[skeleton_mask]
-
-    if len(samples) < MIN_SKELETON_SAMPLES:
-        return None
-
-    return float(np.median(samples))
+    run_lengths = ends[:, 1] - starts[:, 1]
+    return float(np.median(run_lengths))
 
 
 def _crop_header_portion(
@@ -164,24 +157,19 @@ def check_bold_opencv(
         logger.info("Bold check: failed to crop text regions")
         return None
 
-    header_width = _median_stroke_width(header_crop)
-    body_width = _median_stroke_width(body_crop)
+    header_run = _median_run_length(header_crop)
+    body_run = _median_run_length(body_crop)
 
-    if header_width is None or body_width is None:
-        logger.info("Bold check: insufficient skeleton samples (header=%s, body=%s)",
-                     header_width, body_width)
+    if body_run == 0:
+        logger.info("Bold check: body run length is zero")
         return None
 
-    if body_width == 0:
-        logger.info("Bold check: body stroke width is zero")
-        return None
-
-    ratio = header_width / body_width
+    ratio = header_run / body_run
     is_bold = ratio >= BOLD_RATIO_THRESHOLD
 
     logger.info(
-        "Stroke width ratio: %.2f (header=%.2f, body=%.2f) → %s",
-        ratio, header_width, body_width, "BOLD" if is_bold else "NOT BOLD",
+        "Run-length ratio: %.2f (header=%.2f, body=%.2f) → %s",
+        ratio, header_run, body_run, "BOLD" if is_bold else "NOT BOLD",
     )
 
     return is_bold

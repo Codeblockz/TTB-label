@@ -44,3 +44,6 @@ Demo link works and have a script for easy set up.
 Feb 9, Used the agents to create a stakeholder brief.
 Brief made. It was Made for stakeholders and not a technical review. I think I could push this now to the web but just to be sure I want to make more data sets and test it a little more since I have until Friday. 
 I added more test images and I made it so that in the front end you can select already made images. 
+
+Feb 10
+I want to circle back to the bold detection In the government warning. We use OpenCV because it's quick. However, it's not really accurate and that does not achieve The purpose of what we want we want to save time So we need to find a solution that doesn't take up more time that hits our five second window and is accurate. 
