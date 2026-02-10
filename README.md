@@ -4,7 +4,7 @@ AI-powered alcohol label compliance checker for TTB (Alcohol and Tobacco Tax and
 
 ## Demo
 
-https://github.com/user-attachments/assets/placeholder
+[https://github.com/user-attachments/assets/placeholder](https://github.com/user-attachments/assets/4e493b68-c2db-4002-9113-d2971d735ea7)
 
 <video src="docs/assets/single_upload.mp4" controls width="600"></video>
 
