@@ -50,3 +50,5 @@ I want to circle back to the bold detection In the government warning. We use Op
 Now I need to fix the bold so it flags correctly.
 
 I will use claude code to perform user testing. However, I expect the results to be poor because I do not know precisely what I need. The caveat of using an AI assistant is it only works well if you tell it what to do. If you tell it to think, it will fail. 
+
+Claude Code made over 50 user test cases. As predicted it said everything is OK. 
