@@ -2,6 +2,14 @@
 
 AI-powered alcohol label compliance checker for TTB (Alcohol and Tobacco Tax and Trade Bureau) regulatory verification.
 
+## Demo
+
+https://github.com/user-attachments/assets/placeholder
+
+<video src="docs/assets/single_upload.mp4" controls width="600"></video>
+
+*Single label upload and analysis*
+
 ## What It Does
 
 Upload photos of alcohol labels and get instant compliance analysis against TTB/COLA regulations. The system uses:
