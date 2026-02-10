@@ -47,3 +47,4 @@ I added more test images and I made it so that in the front end you can select a
 
 Feb 10
 I want to circle back to the bold detection In the government warning. We use OpenCV because it's quick. However, it's not really accurate and that does not achieve The purpose of what we want we want to save time So we need to find a solution that doesn't take up more time that hits our five second window and is accurate. 
+Now I need to fix the bold so it flags correctly.

@@ -30,7 +30,7 @@ def _load_hand_crafted() -> list[SampleLabel]:
                 bottler_name_address=row["bottler_name_address"],
                 country_of_origin=row["country_of_origin"],
                 description="Hand-crafted test label",
-                expected_verdict="pass",
+                expected_verdict=row.get("expected_verdict", "pass"),
                 image_url=f"/api/samples/{row['filename']}/image",
             ))
     return samples
