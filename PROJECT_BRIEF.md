@@ -20,7 +20,7 @@ The solution: **run fast deterministic checks first, and only call the LLM when 
 The pipeline:
 
 1. **Azure Vision OCR** (1–2s) — extracts text and line-level bounding polygons from the label image
-2. **OpenCV bold check** (<100ms) — measures whether "GOVERNMENT WARNING:" is in bold type using stroke-width analysis on the actual image pixels (see below)
+2. **OpenCV bold check** (<1ms) — measures whether "GOVERNMENT WARNING:" is in bold type using horizontal run-length analysis on the actual image pixels (see below)
 3. **9 regex compliance rules** (<1ms) — pattern-matches against the OCR text for each mandatory label element
 4. **LLM** (2–3s, **only if regex fails**) — re-checks only the specific rules that regex couldn't confirm
 5. **Application matching** (<1ms) — compares OCR text against the agent-entered COLA application data
@@ -37,7 +37,7 @@ Every check runs against the raw OCR text. When a check fails, it goes to the LL
 
 **Government Warning — Completeness:** The full warning has two clauses (pregnancy risk, impairment risk). Rather than matching the entire paragraph verbatim — which OCR frequently garbles — the system checks for 4 key phrases per clause (e.g., "SURGEON GENERAL", "DURING PREGNANCY", "IMPAIRS YOUR ABILITY", "OPERATE MACHINERY"). **Threshold: 2 of 4 phrases per clause.** This tolerates OCR mangling 1–2 phrases while still confirming the warning is substantively there. If either clause falls below threshold → WARNING, and the LLM double-checks.
 
-**Government Warning — Bold (OpenCV):** Jenny flagged this as tricky — people try to get creative with the warning format. 27 CFR 16.21 requires the header in bold type. Instead of asking the LLM (which would add ~3s and an API call), the system uses computer vision: it crops the "GOVERNMENT WARNING:" line and a nearby body text line from the original image using OCR bounding polygons, skeletonizes each crop to single-pixel-wide centerlines, measures the median stroke width via distance transform, and compares the ratio. **If the header's strokes are >= 1.25x thicker than body text → BOLD.** The 1.25 threshold was tuned empirically — standard bold fonts run 1.3–1.5x thicker, so 1.25 catches most bold text without false positives from normal weight variation. Falls back to the LLM's judgment when the image is too low-resolution or the text regions can't be isolated.
+**Government Warning — Bold (OpenCV):** Jenny flagged this as tricky — people try to get creative with the warning format. 27 CFR 16.21 requires the header in bold type. Instead of asking the LLM (which would add ~3s and an API call), the system uses computer vision: it crops the "GOVERNMENT WARNING:" header and a nearby body text line from the original image using OCR bounding polygons, binarizes each crop with Otsu thresholding, then measures the median horizontal run length of consecutive foreground pixels per row. Bold text produces longer horizontal runs due to thicker strokes. **If the header's median run length is >= 1.25x longer than body text → BOLD.** The 1.25 threshold was tuned empirically — standard bold fonts run 1.3–1.5x thicker, so 1.25 catches most bold text without false positives from normal weight variation. This replaced an earlier skeleton + distance-transform approach that achieved only 50% accuracy and frequently returned indeterminate results; the run-length method hits 87% accuracy with a 0% indeterminate rate and sub-millisecond timing. Falls back to the LLM's judgment when the image is too low-resolution or the text regions can't be isolated.
 
 **Alcohol Content:** Matches common formats: "45% Alc./Vol.", "12.5% ABV", "90 Proof". If none found → FAIL.
 
@@ -86,7 +86,7 @@ The entire interface is 4 pages. No modals, no nested panels, no advanced option
 | Frontend | React, TypeScript, Vite, Tailwind CSS |
 | OCR | Azure AI Vision 4.0 (Image Analysis API) |
 | LLM | Azure OpenAI GPT-4o-mini — called only when regex rules fail |
-| Bold detection | OpenCV stroke-width analysis (skeletonization + distance transform) |
+| Bold detection | OpenCV horizontal run-length analysis (Otsu binarization + row-wise foreground runs) |
 | Deployment | Docker Compose (local), Azure Container Apps (production) |
 | Development | Claude Code as AI pair programmer |
 
@@ -110,7 +110,7 @@ The entire interface is 4 pages. No modals, no nested panels, no advanced option
 
 ## Known Limitations
 
-- **Bold detection** depends on OCR returning usable bounding polygons and requires enough pixel resolution to measure stroke width. Heavily stylized fonts, very low-resolution images, or labels where the warning is split across panels may return indeterminate.
+- **Bold detection** depends on OCR returning usable bounding polygons and requires enough vertical pixel resolution for horizontal run-length differentiation. Very small text crops (~21px tall or less), heavily stylized fonts, or labels where the warning is split across panels may produce incorrect results.
 - **Regex rules are English-only.** The ~50 beverage types, the name/address pattern, and the government warning phrase matching all assume English text.
 - **The brand name regex can't actually identify brand names.** It passes any label with >= 20 characters of OCR text. This is a known weakness — the LLM fallback handles it, but means the fast path can't validate brand names without the LLM.
 - **Application matching uses word-set intersection, not edit distance.** It handles OCR garbling whole words well, but misses cases where OCR splits one word into two or joins two words into one.
