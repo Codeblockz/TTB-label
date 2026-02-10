@@ -1,6 +1,7 @@
 import json
 import logging
 import os
+from pathlib import Path
 
 from fastapi import APIRouter, BackgroundTasks, Depends, Form, HTTPException, Query, Response, UploadFile
 from fastapi.responses import FileResponse
@@ -8,62 +9,18 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
+from app.config import settings
 from app.dependencies import get_db, get_pipeline
 from app.models.analysis import AnalysisResult, AnalysisStatus
 from app.models.label import Label
 from app.routers import ALLOWED_MIME_TYPES
+from app.routers.converters import to_response
 from app.schemas.analysis import AnalysisListResponse, AnalysisResponse, BulkDeleteRequest, BulkDeleteResponse
-from app.schemas.compliance import ApplicationDetails, ComplianceFinding
 from app.services.pipeline import AnalysisPipeline
 from app.services.storage import save_upload
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/analysis", tags=["analysis"])
-
-
-def _parse_json(raw: str | None, parser):
-    """Parse a JSON string with the given parser, returning None on failure."""
-    if not raw:
-        return None
-    try:
-        return parser(json.loads(raw))
-    except Exception:
-        return None
-
-
-def _enum_value(field) -> str | None:
-    """Extract .value from an enum, or return the string as-is."""
-    return field.value if hasattr(field, "value") else field
-
-
-def _to_response(analysis: AnalysisResult) -> AnalysisResponse:
-    findings = _parse_json(
-        analysis.compliance_findings,
-        lambda data: [ComplianceFinding(**f) for f in data],
-    )
-    app_details = _parse_json(
-        analysis.application_details,
-        lambda data: ApplicationDetails(**data),
-    )
-
-    return AnalysisResponse(
-        id=analysis.id,
-        label_id=analysis.label_id,
-        status=_enum_value(analysis.status),
-        extracted_text=analysis.extracted_text,
-        ocr_confidence=analysis.ocr_confidence,
-        ocr_duration_ms=analysis.ocr_duration_ms,
-        compliance_findings=findings,
-        application_details=app_details,
-        overall_verdict=_enum_value(analysis.overall_verdict),
-        compliance_duration_ms=analysis.compliance_duration_ms,
-        detected_beverage_type=analysis.detected_beverage_type,
-        detected_brand_name=analysis.detected_brand_name,
-        error_message=analysis.error_message,
-        total_duration_ms=analysis.total_duration_ms,
-        image_url=f"/api/analysis/{analysis.id}/image",
-        created_at=analysis.created_at,
-    )
 
 
 async def _run_pipeline(
@@ -148,6 +105,12 @@ async def get_analysis_image(
     analysis = result.scalar_one_or_none()
     if not analysis or not analysis.label:
         raise HTTPException(status_code=404, detail="Image not found")
+
+    upload_dir = Path(settings.upload_dir).resolve()
+    image_path = Path(analysis.label.stored_filepath).resolve()
+    if not image_path.is_relative_to(upload_dir):
+        raise HTTPException(status_code=403, detail="Access denied")
+
     return FileResponse(analysis.label.stored_filepath, media_type=analysis.label.mime_type)
 
 
@@ -159,7 +122,7 @@ async def get_analysis(
     analysis = await db.get(AnalysisResult, analysis_id)
     if not analysis:
         raise HTTPException(status_code=404, detail="Analysis not found")
-    return _to_response(analysis)
+    return to_response(analysis)
 
 
 async def _delete_one(analysis: AnalysisResult, db: AsyncSession) -> None:
@@ -236,7 +199,7 @@ async def list_analyses(
     analyses = result.scalars().all()
 
     return AnalysisListResponse(
-        items=[_to_response(a) for a in analyses],
+        items=[to_response(a) for a in analyses],
         total=total,
         page=page,
         page_size=page_size,

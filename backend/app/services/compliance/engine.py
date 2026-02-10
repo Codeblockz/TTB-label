@@ -122,7 +122,10 @@ class ComplianceEngine:
                     merged_findings.append(llm_by_rule.pop(finding.rule_id))
                 else:
                     merged_findings.append(finding)
-            merged_findings.extend(llm_by_rule.values())
+            # Only add LLM findings for rules we actually asked about
+            for rule_id, finding in llm_by_rule.items():
+                if rule_id in needs_llm:
+                    merged_findings.append(finding)
             regex_findings = merged_findings
 
         # Fall back to regex extraction if LLM didn't provide metadata

@@ -54,7 +54,10 @@ def _median_run_length(crop: np.ndarray) -> float:
     if len(starts) == 0 or len(ends) == 0:
         return 0.0
 
-    run_lengths = ends[:, 1] - starts[:, 1]
+    min_len = min(len(starts), len(ends))
+    if min_len == 0:
+        return 0.0
+    run_lengths = ends[:min_len, 1] - starts[:min_len, 1]
     return float(np.median(run_lengths))
 
 

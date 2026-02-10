@@ -104,13 +104,15 @@ async def upload_batch(
                     details[field] = value
             details_by_filename[filename.lower()] = details
 
-    batch = BatchJob(total_labels=len(files))
+    batch = BatchJob(total_labels=0)
     db.add(batch)
     await db.flush()
 
+    skipped_files: list[str] = []
     items = []
     for file in files:
         if file.content_type not in ALLOWED_MIME_TYPES:
+            skipped_files.append(file.filename or "unknown")
             continue
 
         stored_path, file_size = await save_upload(file)
@@ -144,12 +146,13 @@ async def upload_batch(
             "application_details": app_details,
         })
 
+    batch.total_labels = len(items)
     await db.commit()
 
     pipeline = get_pipeline()
     background_tasks.add_task(_run_batch_pipeline, batch.id, items, pipeline)
 
-    return {"batch_id": batch.id, "total_labels": len(items)}
+    return {"batch_id": batch.id, "total_labels": len(items), "skipped_files": skipped_files}
 
 
 @router.get("/{batch_id}", response_model=BatchDetailResponse)
@@ -169,11 +172,11 @@ async def get_batch(
     )
     analyses = result.scalars().all()
 
-    from app.routers.analysis import _to_response
+    from app.routers.converters import to_response
 
     return BatchDetailResponse(
         batch=BatchResponse.model_validate(batch),
-        analyses=[_to_response(a) for a in analyses],
+        analyses=[to_response(a) for a in analyses],
     )
 
 

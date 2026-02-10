@@ -1,3 +1,4 @@
+import asyncio
 import json
 import logging
 import time
@@ -54,7 +55,7 @@ class AnalysisPipeline:
 
             # Stage 2: OpenCV bold check (sync, <100ms)
             bold_start = time.perf_counter()
-            bold_result = check_bold_opencv(image_path, ocr_result.lines)
+            bold_result = await asyncio.to_thread(check_bold_opencv, image_path, ocr_result.lines)
             bold_ms = int((time.perf_counter() - bold_start) * 1000)
 
             logger.info(

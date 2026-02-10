@@ -16,7 +16,7 @@ logger = logging.getLogger(__name__)
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # Import models so metadata is populated
-    from app.models import analysis as _a, batch as _b, label as _l  # noqa: F401
+    from app.models import analysis, batch, label  # noqa: F401
 
     logger.info("Creating database tables...")
     await create_all_tables(engine)
