@@ -16,19 +16,21 @@ export default function Header() {
           LabelCheck
         </Link>
         <nav className="flex gap-4">
-          {NAV_ITEMS.map((item) => (
-            <Link
-              key={item.to}
-              to={item.to}
-              className={`text-sm font-medium ${
-                location.pathname === item.to
-                  ? "text-blue-600"
-                  : "text-gray-600 hover:text-gray-900"
-              }`}
-            >
-              {item.label}
-            </Link>
-          ))}
+          {NAV_ITEMS.map((item) => {
+            const isActive = location.pathname === item.to;
+            const cls = `text-sm font-medium ${
+              isActive ? "text-blue-600" : "text-gray-600 hover:text-gray-900"
+            }`;
+            // Plain <a> when already on "/" so the page fully reloads and resets state
+            if (item.to === "/" && isActive) {
+              return <a key={item.to} href="/" className={cls}>{item.label}</a>;
+            }
+            return (
+              <Link key={item.to} to={item.to} className={cls}>
+                {item.label}
+              </Link>
+            );
+          })}
         </nav>
       </div>
     </header>
