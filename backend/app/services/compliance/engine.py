@@ -138,11 +138,11 @@ class ComplianceEngine:
             regex_findings.append(ComplianceFinding(
                 rule_id="GOV_WARNING_BOLD",
                 rule_name="Government Warning Bold Format",
-                severity=Severity.PASS if effective_bold else Severity.INFO,
+                severity=Severity.PASS if effective_bold else Severity.FAIL,
                 message=(
                     "'GOVERNMENT WARNING:' appears in required bold type"
                     if effective_bold else
-                    "'GOVERNMENT WARNING:' may not be in required bold type"
+                    "'GOVERNMENT WARNING:' is not in required bold type"
                 ),
                 regulation_reference="27 CFR 16.21",
             ))

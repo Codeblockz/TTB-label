@@ -56,7 +56,7 @@ VODKA
 750 mL
 Government Warning: (1) According to the Surgeon General, women should not drink alcoholic beverages during pregnancy because of the risk of birth defects. (2) Consumption of alcoholic beverages impairs your ability to drive a car or operate machinery, and may cause health problems.
 Distilled by Cedar Falls Distillery, Minneapolis, MN"
-"pillow_incomplete_warning.png","PINE HOLLOW","WHISKEY","43% Alc./Vol.","750 mL","Distilled by Pine Hollow Distillery, Lexington, KY","","GOVERNMENT WARNING: (1) ACCORDING TO THE SURGEON GENERAL, WOMEN SHOULD NOT DRINK ALCOHOLIC BEVERAGES DURING PREGNANCY BECAUSE OF THE RISK OF BIRTH DEFECTS.","warnings","","GOV_WARNING_COMPLETE","Government warning only has clause 1, missing clause 2","pillow","PINE HOLLOW
+"pillow_incomplete_warning.png","PINE HOLLOW","WHISKEY","43% Alc./Vol.","750 mL","Distilled by Pine Hollow Distillery, Lexington, KY","","GOVERNMENT WARNING: (1) ACCORDING TO THE SURGEON GENERAL, WOMEN SHOULD NOT DRINK ALCOHOLIC BEVERAGES DURING PREGNANCY BECAUSE OF THE RISK OF BIRTH DEFECTS.","fail","GOV_WARNING_COMPLETE","","Government warning only has clause 1, missing clause 2","pillow","PINE HOLLOW
 WHISKEY
 43% Alc./Vol.
 750 mL

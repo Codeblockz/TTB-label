@@ -523,7 +523,7 @@ class TestComplianceEngine:
         assert bold_finding.severity == Severity.PASS
 
     @pytest.mark.asyncio
-    async def test_bold_false_appends_info_finding(self):
+    async def test_bold_false_appends_fail_finding(self):
         mock_llm = AsyncMock()
 
         engine = ComplianceEngine(mock_llm)
@@ -535,8 +535,8 @@ class TestComplianceEngine:
             (f for f in report.findings if f.rule_id == "GOV_WARNING_BOLD"), None,
         )
         assert bold_finding is not None
-        assert bold_finding.severity == Severity.INFO
-        assert report.overall_verdict == "pass"
+        assert bold_finding.severity == Severity.FAIL
+        assert report.overall_verdict == "fail"
 
     @pytest.mark.asyncio
     async def test_no_bold_finding_when_no_bold_result(self):
@@ -577,11 +577,11 @@ Product of USA"""
         )
         assert class_type_finding.severity == Severity.FAIL
 
-        # Bold=False produces INFO, not WARNING — shouldn't affect verdict
+        # Bold=False produces FAIL
         bold_finding = next(
             f for f in report.findings if f.rule_id == "GOV_WARNING_BOLD"
         )
-        assert bold_finding.severity == Severity.INFO
+        assert bold_finding.severity == Severity.FAIL
 
         assert report.overall_verdict == "fail"
 
